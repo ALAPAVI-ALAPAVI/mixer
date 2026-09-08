@@ -16,12 +16,6 @@ const ALLOWED_TYPES = [
 const MAX_SIZE_BYTES = 100 * 1024 * 1024; // 100MB - safe now since files go straight to Blob, not through this function
 
 export async function POST(req) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
-  }
-  const userId = Number(session.user.id);
-
   const body = await req.json();
 
   try {
@@ -29,6 +23,14 @@ export async function POST(req) {
       body,
       request: req,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
+        // This callback runs on the FIRST call, made directly by the browser
+        // with the user's session cookie attached — safe to check auth here.
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.id) {
+          throw new Error('Not signed in.');
+        }
+        const userId = Number(session.user.id);
+
         let meta = {};
         try {
           meta = clientPayload ? JSON.parse(clientPayload) : {};
@@ -48,8 +50,10 @@ export async function POST(req) {
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        // Runs as a server-to-server callback once the file has fully landed in
-        // Blob storage. This is where we actually create the track row.
+        // Runs as a SECOND, separate call — this one made server-to-server by
+        // Vercel's Blob infrastructure once the file has fully landed in Blob
+        // storage. It carries no session cookie at all (there's no browser
+        // involved), so identity comes from tokenPayload we set above instead.
         const meta = tokenPayload ? JSON.parse(tokenPayload) : {};
         if (!meta.userId) return;
 
