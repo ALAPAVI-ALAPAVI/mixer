@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { upload } from '@vercel/blob/client';
 import { saveTrackOffline, removeOfflineTrack } from '@/lib/offline';
 
 export default function Library({
@@ -11,7 +12,7 @@ export default function Library({
   offlineIds,
   onPlay,
   onTogglePlayPause,
-  onUploaded,
+  onUploadDone,
   onDelete,
   onOfflineChange,
 }) {
@@ -26,15 +27,21 @@ export default function Library({
     setUploadError('');
     setUploading(true);
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
-
     try {
-      const res = await fetch('/api/tracks', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
-      onUploaded(data.track);
+      // Uploads straight from the browser to Blob storage, bypassing the
+      // ~4.5MB request size limit that Vercel's serverless functions have.
+      await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/tracks/upload-url',
+        clientPayload: JSON.stringify({
+          title: file.name.replace(/\.[^/.]+$/, ''),
+        }),
+      });
+
+      // The database row is created by a server-to-server callback that fires
+      // right after the upload lands, so it can trail the upload by a moment.
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      await onUploadDone();
     } catch (err) {
       setUploadError(err.message || 'Could not upload that file.');
     } finally {

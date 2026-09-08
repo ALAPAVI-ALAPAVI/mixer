@@ -108,8 +108,15 @@ Put the result in `NEXTAUTH_SECRET`. Use a different one for local vs. productio
   (they're long random unguessable strings, but not access-controlled). Fine for a personal
   project; if you want real privacy, we'd add a server-side streaming proxy that checks the
   session before serving each file.
-- **50MB upload limit** per track, set in `app/api/tracks/route.js` — adjust `MAX_SIZE_BYTES`
-  if you need larger files.
+- **100MB upload limit** per track, set in `app/api/tracks/upload-url/route.js` — adjust
+  `MAX_SIZE_BYTES` if you need larger files. Uploads go straight from the browser to Blob
+  storage (not through this app's own server), which is what avoids Vercel's hard ~4.5MB
+  request-size cap on serverless functions.
+- **Uploads only save to the database on the deployed site, not in local dev.** After a file
+  finishes uploading, Vercel's Blob service calls this app back (`onUploadCompleted` in
+  `app/api/tracks/upload-url/route.js`) to record it in Postgres — but that callback needs a
+  publicly reachable URL, so it can't reach `localhost`. Test uploads on the real Vercel
+  deployment; local dev is fine for everything else.
 - **No icons yet:** `public/manifest.json` references `/icon-192.png` and `/icon-512.png`
   which don't exist yet — add real app icon images at those paths so "Add to Home Screen"
   looks right.

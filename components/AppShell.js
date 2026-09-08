@@ -142,8 +142,10 @@ export default function AppShell({ userName }) {
     if (audio) audio.currentTime = seconds;
   }
 
-  function handleUploaded(track) {
-    setTracks((prev) => [track, ...prev]);
+  async function handleUploadDone() {
+    // The new row is created by a server-side callback, not returned directly
+    // to the browser, so refresh from the source of truth instead of guessing.
+    await fetchTracks();
   }
 
   async function handleDelete(track) {
@@ -190,7 +192,7 @@ export default function AppShell({ userName }) {
           offlineIds={offlineIds}
           onPlay={(index) => playTrackAtIndex(index)}
           onTogglePlayPause={togglePlayPause}
-          onUploaded={handleUploaded}
+          onUploadDone={handleUploadDone}
           onDelete={handleDelete}
           onOfflineChange={refreshOfflineIds}
         />
