@@ -75,7 +75,7 @@ export default function Library({
   return (
     <section>
       <div className="library-header">
-        <h2>Your library</h2>
+        <h2>All Songs</h2>
       </div>
 
       <div className="upload-row">
@@ -102,7 +102,7 @@ export default function Library({
       ) : tracks.length === 0 ? (
         <div className="empty-state">
           Nothing here yet. Upload a song from your device to get started — it'll sync to
-          every device you sign into.
+          every device you sign into, and land in your default folder automatically.
         </div>
       ) : (
         <div className="track-list">

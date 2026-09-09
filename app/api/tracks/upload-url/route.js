@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { handleUpload } from '@vercel/blob/client';
 import { authOptions } from '@/lib/auth';
-import { insertTrack } from '@/lib/db';
+import { insertTrack, addTrackToDefaultFolder } from '@/lib/db';
 
 const ALLOWED_TYPES = [
   'audio/mpeg',
@@ -57,13 +57,16 @@ export async function POST(req) {
         const meta = tokenPayload ? JSON.parse(tokenPayload) : {};
         if (!meta.userId) return;
 
-        await insertTrack({
+        const track = await insertTrack({
           userId: meta.userId,
           title: meta.title || 'Untitled',
           artist: meta.artist || null,
           blobUrl: blob.url,
           sizeBytes: null,
         });
+
+        // Every uploaded song automatically lands in the default folder too.
+        await addTrackToDefaultFolder(meta.userId, track.id);
       },
     });
 

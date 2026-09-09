@@ -1,19 +1,30 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { signOut } from 'next-auth/react';
 import Library from '@/components/Library';
 import PlayerBar from '@/components/PlayerBar';
 import RegisterSW from '@/components/RegisterSW';
+import BottomNav from '@/components/BottomNav';
+import HomeScreen from '@/components/HomeScreen';
+import FoldersScreen from '@/components/FoldersScreen';
+import FolderDetailView from '@/components/FolderDetailView';
+import AccountScreen from '@/components/AccountScreen';
 import { getOfflineTrackBlob, listOfflineTrackIds, removeOfflineTrack } from '@/lib/offline';
 
 export default function AppShell({ userName }) {
-  const [tracks, setTracks] = useState([]);
+  const [section, setSection] = useState('home'); // 'home' | 'folders' | 'allsongs' | 'account'
+  const [selectedFolder, setSelectedFolder] = useState(null);
+
+  const [tracks, setTracks] = useState([]); // the full "All Songs" library
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [offlineIds, setOfflineIds] = useState(new Set());
 
-  const [currentIndex, setCurrentIndex] = useState(-1);
+  // Playback works off a "queue" — whichever list of tracks the person is
+  // currently playing from (All Songs, or a specific folder) — rather than
+  // always assuming the global library.
+  const [queue, setQueue] = useState([]);
+  const [queueIndex, setQueueIndex] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -64,7 +75,7 @@ export default function AppShell({ userName }) {
       if (!res.ok) throw new Error('Failed to load your library.');
       const data = await res.json();
       setTracks(data.tracks);
-    } catch (err) {
+    } catch {
       setLoadError('Could not load your library. Check your connection and try again.');
     } finally {
       setLoading(false);
@@ -80,42 +91,43 @@ export default function AppShell({ userName }) {
     }
   }
 
-  const playTrackAtIndex = useCallback(
-    async (index) => {
-      const track = tracks[index];
-      const audio = audioRef.current;
-      if (!track || !audio) return;
+  // Plays a track from a given list (the All Songs library, or a folder's
+  // track list) starting at `index`, and remembers that list as the queue so
+  // next/prev keep working within whichever list you were playing from.
+  const playFromQueue = useCallback(async (list, index) => {
+    const track = list[index];
+    const audio = audioRef.current;
+    if (!track || !audio) return;
 
-      setPlaybackError('');
-      setCurrentIndex(index);
+    setPlaybackError('');
+    setQueue(list);
+    setQueueIndex(index);
 
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = null;
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+
+    try {
+      const offlineBlob = await getOfflineTrackBlob(track.id);
+      if (offlineBlob) {
+        const url = URL.createObjectURL(offlineBlob);
+        objectUrlRef.current = url;
+        audio.src = url;
+      } else {
+        audio.src = track.blob_url;
       }
-
-      try {
-        const offlineBlob = await getOfflineTrackBlob(track.id);
-        if (offlineBlob) {
-          const url = URL.createObjectURL(offlineBlob);
-          objectUrlRef.current = url;
-          audio.src = url;
-        } else {
-          audio.src = track.blob_url;
-        }
-        await audio.play();
-      } catch (err) {
-        setPlaybackError('Could not play this track. It may need an internet connection.');
-      }
-    },
-    [tracks]
-  );
+      await audio.play();
+    } catch {
+      setPlaybackError('Could not play this track. It may need an internet connection.');
+    }
+  }, []);
 
   function togglePlayPause() {
     const audio = audioRef.current;
     if (!audio) return;
-    if (currentIndex === -1 && tracks.length > 0) {
-      playTrackAtIndex(0);
+    if (queueIndex === -1 && queue.length > 0) {
+      playFromQueue(queue, 0);
       return;
     }
     if (audio.paused) {
@@ -126,15 +138,15 @@ export default function AppShell({ userName }) {
   }
 
   function playNext() {
-    if (tracks.length === 0) return;
-    const next = currentIndex + 1 < tracks.length ? currentIndex + 1 : 0;
-    playTrackAtIndex(next);
+    if (queue.length === 0) return;
+    const next = queueIndex + 1 < queue.length ? queueIndex + 1 : 0;
+    playFromQueue(queue, next);
   }
 
   function playPrev() {
-    if (tracks.length === 0) return;
-    const prev = currentIndex - 1 >= 0 ? currentIndex - 1 : tracks.length - 1;
-    playTrackAtIndex(prev);
+    if (queue.length === 0) return;
+    const prev = queueIndex - 1 >= 0 ? queueIndex - 1 : queue.length - 1;
+    playFromQueue(queue, prev);
   }
 
   function seekTo(seconds) {
@@ -149,7 +161,7 @@ export default function AppShell({ userName }) {
   }
 
   async function handleDelete(track) {
-    const wasCurrent = tracks[currentIndex]?.id === track.id;
+    const wasCurrent = queue[queueIndex]?.id === track.id;
     try {
       const res = await fetch(`/api/tracks/${track.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
@@ -158,44 +170,66 @@ export default function AppShell({ userName }) {
       refreshOfflineIds();
       if (wasCurrent) {
         audioRef.current?.pause();
-        setCurrentIndex(-1);
+        setQueueIndex(-1);
       }
     } catch {
       setLoadError('Could not delete that track. Try again.');
     }
   }
 
-  const currentTrack = currentIndex >= 0 ? tracks[currentIndex] : null;
+  function navigate(nextSection) {
+    setSection(nextSection);
+    setSelectedFolder(null);
+  }
+
+  const currentTrack = queueIndex >= 0 ? queue[queueIndex] : null;
 
   return (
     <div className="app-shell">
       <RegisterSW />
       <header className="top-bar">
         <span className="brand">Mixer</span>
-        <div className="user-info">
-          <span>{userName}</span>
-          <button className="btn-link" onClick={() => signOut({ callbackUrl: '/login' })}>
-            Sign out
-          </button>
-        </div>
       </header>
 
       <main className="content">
         {loadError && <div className="form-error">{loadError}</div>}
         {playbackError && <div className="form-error">{playbackError}</div>}
 
-        <Library
-          tracks={tracks}
-          loading={loading}
-          currentTrackId={currentTrack?.id}
-          isPlaying={isPlaying}
-          offlineIds={offlineIds}
-          onPlay={(index) => playTrackAtIndex(index)}
-          onTogglePlayPause={togglePlayPause}
-          onUploadDone={handleUploadDone}
-          onDelete={handleDelete}
-          onOfflineChange={refreshOfflineIds}
-        />
+        {section === 'home' && <HomeScreen userName={userName} onNavigate={navigate} />}
+
+        {section === 'folders' && !selectedFolder && (
+          <FoldersScreen onOpenFolder={setSelectedFolder} />
+        )}
+
+        {section === 'folders' && selectedFolder && (
+          <FolderDetailView
+            folder={selectedFolder}
+            allTracks={tracks}
+            currentTrackId={currentTrack?.id}
+            isPlaying={isPlaying}
+            offlineIds={offlineIds}
+            onPlayQueue={playFromQueue}
+            onTogglePlayPause={togglePlayPause}
+            onBack={() => setSelectedFolder(null)}
+          />
+        )}
+
+        {section === 'allsongs' && (
+          <Library
+            tracks={tracks}
+            loading={loading}
+            currentTrackId={currentTrack?.id}
+            isPlaying={isPlaying}
+            offlineIds={offlineIds}
+            onPlay={(index) => playFromQueue(tracks, index)}
+            onTogglePlayPause={togglePlayPause}
+            onUploadDone={handleUploadDone}
+            onDelete={handleDelete}
+            onOfflineChange={refreshOfflineIds}
+          />
+        )}
+
+        {section === 'account' && <AccountScreen userName={userName} />}
       </main>
 
       <PlayerBar
@@ -208,6 +242,8 @@ export default function AppShell({ userName }) {
         onPrev={playPrev}
         onSeek={seekTo}
       />
+
+      <BottomNav active={section} onNavigate={navigate} />
     </div>
   );
 }

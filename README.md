@@ -87,6 +87,19 @@ Put the result in `NEXTAUTH_SECRET`. Use a different one for local vs. productio
 
 ## How it works
 
+- **Sections:** the app is organized into four sections reachable from the bottom nav
+  (and, redundantly but by design, from tiles on the Home screen): **Home**, **Folders**,
+  **All Songs**, and **Account**.
+- **All Songs** is the master library — every uploaded track lives here, and this is the
+  only place a song can be permanently deleted.
+- **Folders** are separate from the library itself: adding a song to a folder just creates
+  an association between them, it doesn't move or copy the song. Removing a song from a
+  folder never deletes the song — only deleting from All Songs does that. Every account
+  has one **default folder** ("All Uploads") that every new upload is automatically added
+  to; it can't be deleted, though you can still create your own folders alongside it.
+  Folders support both grid and list view (toggle top-right).
+- **Account** shows a simple account card and is where Sign out lives now.
+
 - **Auth:** NextAuth handles both Google sign-in and email/password sign-in. Both map onto
   the same `users` table by email — so if you sign up with email/password and later sign in
   with Google using the same address, it's treated as one account with one library.
