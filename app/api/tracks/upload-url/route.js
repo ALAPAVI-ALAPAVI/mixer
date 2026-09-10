@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { handleUpload } from '@vercel/blob/client';
 import { authOptions } from '@/lib/auth';
-import { insertTrack, addTrackToDefaultFolder } from '@/lib/db';
+import { insertTrack, addTrackToDefaultFolder, findTrackByHash } from '@/lib/db';
 
 const ALLOWED_TYPES = [
   'audio/mpeg',
@@ -14,6 +14,11 @@ const ALLOWED_TYPES = [
   'audio/aac',
 ];
 const MAX_SIZE_BYTES = 100 * 1024 * 1024; // 100MB - safe now since files go straight to Blob, not through this function
+
+// Thrown when the same song (by content hash) already exists for this user.
+// The client checks specifically for this text to distinguish "rejected on
+// purpose" from "failed because we're offline" - see Library.js.
+const DUPLICATE_MESSAGE = 'DUPLICATE_TRACK';
 
 export async function POST(req) {
   const body = await req.json();
@@ -38,6 +43,16 @@ export async function POST(req) {
           meta = {};
         }
 
+        // Authoritative duplicate check against the database — catches cases
+        // the client's own local check can't, like the same song already
+        // having been uploaded from a different device.
+        if (meta.hash) {
+          const existing = await findTrackByHash(userId, meta.hash);
+          if (existing) {
+            throw new Error(DUPLICATE_MESSAGE);
+          }
+        }
+
         return {
           allowedContentTypes: ALLOWED_TYPES,
           maximumSizeInBytes: MAX_SIZE_BYTES,
@@ -46,6 +61,7 @@ export async function POST(req) {
             userId,
             title: meta.title || 'Untitled',
             artist: meta.artist || null,
+            hash: meta.hash || null,
           }),
         };
       },
@@ -63,6 +79,7 @@ export async function POST(req) {
           artist: meta.artist || null,
           blobUrl: blob.url,
           sizeBytes: null,
+          contentHash: meta.hash || null,
         });
 
         // Every uploaded song automatically lands in the default folder too.

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Modal from '@/components/Modal';
 
-export default function FoldersScreen({ onOpenFolder }) {
+export default function FoldersScreen({ onOpenFolder, pendingCount }) {
   const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -11,6 +11,9 @@ export default function FoldersScreen({ onOpenFolder }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [creating, setCreating] = useState(false);
+
+  const localVirtualFolder = { id: 'local-virtual', name: 'Local (offline)', track_count: pendingCount, virtual: true };
+  const displayFolders = [localVirtualFolder, ...folders];
 
   useEffect(() => {
     fetchFolders();
@@ -82,7 +85,7 @@ export default function FoldersScreen({ onOpenFolder }) {
         <p style={{ color: 'var(--text-muted)' }}>Loading folders…</p>
       ) : view === 'grid' ? (
         <div className="folder-grid">
-          {folders.map((folder) => (
+          {displayFolders.map((folder) => (
             <button key={folder.id} className="folder-tile" onClick={() => onOpenFolder(folder)}>
               <span className="folder-tile-name">{folder.name}</span>
               <span className="folder-tile-count">{folder.track_count} songs</span>
@@ -91,7 +94,7 @@ export default function FoldersScreen({ onOpenFolder }) {
         </div>
       ) : (
         <div className="track-list">
-          {folders.map((folder) => (
+          {displayFolders.map((folder) => (
             <button key={folder.id} className="track-row folder-list-row" onClick={() => onOpenFolder(folder)}>
               <div className="track-meta">
                 <div className="title">{folder.name}</div>

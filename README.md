@@ -99,6 +99,22 @@ Put the result in `NEXTAUTH_SECRET`. Use a different one for local vs. productio
   to; it can't be deleted, though you can still create your own folders alongside it.
   Folders support both grid and list view (toggle top-right).
 - **Account** shows a simple account card and is where Sign out lives now.
+- **Duplicate detection:** every upload is fingerprinted with a SHA-256 hash of the file's
+  contents (computed in the browser). Uploading the exact same audio file twice — even
+  under a different filename — is rejected with a clear message, both from a fast local
+  check and an authoritative server-side check.
+- **Offline uploads:** choosing a song while offline (or if the upload attempt otherwise
+  fails) queues it locally in IndexedDB instead of losing it. The All Songs screen shows a
+  "Local (not yet uploaded)" panel above the cloud library with an **Upload to Cloud**
+  button and a progress bar; successful items disappear from that panel as they sync.
+  The Folders section also has a fixed "Local (offline)" folder showing the same queue.
+  The existing "All Uploads" default folder already covers "all cloud songs" as a fixed
+  folder, so a separate duplicate "Cloud" folder wasn't added — say the word if you'd
+  rather have that as its own explicit tile anyway.
+- **Offline library view:** the last successfully loaded track list is cached locally, so
+  reopening the app with no connection still shows your library (with a small notice) —
+  playback still requires either the network or the song having been explicitly
+  downloaded for offline listening.
 
 - **Auth:** NextAuth handles both Google sign-in and email/password sign-in. Both map onto
   the same `users` table by email — so if you sign up with email/password and later sign in

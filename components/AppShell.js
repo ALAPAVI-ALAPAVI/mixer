@@ -8,17 +8,34 @@ import BottomNav from '@/components/BottomNav';
 import HomeScreen from '@/components/HomeScreen';
 import FoldersScreen from '@/components/FoldersScreen';
 import FolderDetailView from '@/components/FolderDetailView';
+import LocalFolderView from '@/components/LocalFolderView';
 import AccountScreen from '@/components/AccountScreen';
-import { getOfflineTrackBlob, listOfflineTrackIds, removeOfflineTrack } from '@/lib/offline';
+import {
+  getOfflineTrackBlob,
+  listOfflineTrackIds,
+  removeOfflineTrack,
+  cacheTracksMeta,
+  getCachedTracksMeta,
+  queuePendingUpload,
+  listPendingUploads,
+  removePendingUpload,
+} from '@/lib/offline';
+import { uploadTrackFile, DUPLICATE_TRACK_ERROR } from '@/lib/uploadTrack';
 
 export default function AppShell({ userName }) {
   const [section, setSection] = useState('home'); // 'home' | 'folders' | 'allsongs' | 'account'
   const [selectedFolder, setSelectedFolder] = useState(null);
 
-  const [tracks, setTracks] = useState([]); // the full "All Songs" library
+  const [tracks, setTracks] = useState([]); // the full "All Songs" / Cloud library
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [usingCachedLibrary, setUsingCachedLibrary] = useState(false);
   const [offlineIds, setOfflineIds] = useState(new Set());
+
+  const [pendingUploads, setPendingUploads] = useState([]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ done: 0, total: 0 });
+  const [isOnline, setIsOnline] = useState(true);
 
   // Playback works off a "queue" — whichever list of tracks the person is
   // currently playing from (All Songs, or a specific folder) — rather than
@@ -62,9 +79,24 @@ export default function AppShell({ userName }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Track real connectivity so the "Upload to Cloud" button only enables when
+  // there's actually a network to use.
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
   useEffect(() => {
     fetchTracks();
     refreshOfflineIds();
+    refreshPendingUploads();
   }, []);
 
   async function fetchTracks() {
@@ -75,8 +107,23 @@ export default function AppShell({ userName }) {
       if (!res.ok) throw new Error('Failed to load your library.');
       const data = await res.json();
       setTracks(data.tracks);
+      setUsingCachedLibrary(false);
+      cacheTracksMeta(data.tracks).catch(() => {});
     } catch {
-      setLoadError('Could not load your library. Check your connection and try again.');
+      // Likely offline — fall back to whatever we last successfully loaded,
+      // so the library isn't just empty after a reload with no connection.
+      try {
+        const cached = await getCachedTracksMeta();
+        if (cached && cached.length > 0) {
+          setTracks(cached);
+          setUsingCachedLibrary(true);
+          setLoadError('');
+        } else {
+          setLoadError('Could not load your library. Check your connection and try again.');
+        }
+      } catch {
+        setLoadError('Could not load your library. Check your connection and try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -88,6 +135,15 @@ export default function AppShell({ userName }) {
       setOfflineIds(new Set(ids));
     } catch {
       // IndexedDB unavailable (e.g. private browsing) - offline downloads just won't be offered.
+    }
+  }
+
+  async function refreshPendingUploads() {
+    try {
+      const list = await listPendingUploads();
+      setPendingUploads(list);
+    } catch {
+      // IndexedDB unavailable - offline upload queueing just won't be offered.
     }
   }
 
@@ -160,6 +216,49 @@ export default function AppShell({ userName }) {
     await fetchTracks();
   }
 
+  async function handleQueueOffline(file, { hash, title, artist }) {
+    await queuePendingUpload({ hash, blob: file, title, artist, fileName: file.name, fileType: file.type });
+    await refreshPendingUploads();
+  }
+
+  async function handleCancelPending(hash) {
+    await removePendingUpload(hash);
+    await refreshPendingUploads();
+  }
+
+  async function handleSyncPendingUploads() {
+    const list = await listPendingUploads();
+    if (list.length === 0) return;
+
+    setSyncing(true);
+    setSyncProgress({ done: 0, total: list.length });
+
+    let done = 0;
+    for (const item of list) {
+      try {
+        const file = new File([item.blob], item.fileName, { type: item.fileType });
+        await uploadTrackFile(file, { hash: item.hash, title: item.title, artist: item.artist });
+        await removePendingUpload(item.hash);
+        done += 1;
+        setSyncProgress({ done, total: list.length });
+      } catch (err) {
+        if (err.message && err.message.includes(DUPLICATE_TRACK_ERROR)) {
+          // Already uploaded from elsewhere in the meantime — safe to drop from the queue.
+          await removePendingUpload(item.hash);
+          done += 1;
+          setSyncProgress({ done, total: list.length });
+          continue;
+        }
+        // Probably lost connection again — stop here, leave the rest queued for next time.
+        break;
+      }
+    }
+
+    await refreshPendingUploads();
+    await fetchTracks();
+    setSyncing(false);
+  }
+
   async function handleDelete(track) {
     const wasCurrent = queue[queueIndex]?.id === track.id;
     try {
@@ -193,15 +292,32 @@ export default function AppShell({ userName }) {
 
       <main className="content">
         {loadError && <div className="form-error">{loadError}</div>}
+        {usingCachedLibrary && (
+          <div className="form-error" style={{ background: 'rgba(232,163,61,0.12)', borderColor: 'rgba(232,163,61,0.4)', color: 'var(--accent)' }}>
+            You're offline — showing your last-known library.
+          </div>
+        )}
         {playbackError && <div className="form-error">{playbackError}</div>}
 
         {section === 'home' && <HomeScreen userName={userName} onNavigate={navigate} />}
 
         {section === 'folders' && !selectedFolder && (
-          <FoldersScreen onOpenFolder={setSelectedFolder} />
+          <FoldersScreen onOpenFolder={setSelectedFolder} pendingCount={pendingUploads.length} />
         )}
 
-        {section === 'folders' && selectedFolder && (
+        {section === 'folders' && selectedFolder && selectedFolder.virtual && (
+          <LocalFolderView
+            pendingUploads={pendingUploads}
+            syncing={syncing}
+            syncProgress={syncProgress}
+            isOnline={isOnline}
+            onSync={handleSyncPendingUploads}
+            onCancel={handleCancelPending}
+            onBack={() => setSelectedFolder(null)}
+          />
+        )}
+
+        {section === 'folders' && selectedFolder && !selectedFolder.virtual && (
           <FolderDetailView
             folder={selectedFolder}
             allTracks={tracks}
@@ -226,6 +342,13 @@ export default function AppShell({ userName }) {
             onUploadDone={handleUploadDone}
             onDelete={handleDelete}
             onOfflineChange={refreshOfflineIds}
+            pendingUploads={pendingUploads}
+            syncing={syncing}
+            syncProgress={syncProgress}
+            isOnline={isOnline}
+            onQueueOffline={handleQueueOffline}
+            onSync={handleSyncPendingUploads}
+            onCancelPending={handleCancelPending}
           />
         )}
 
