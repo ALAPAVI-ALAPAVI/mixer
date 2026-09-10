@@ -10,6 +10,7 @@ import FoldersScreen from '@/components/FoldersScreen';
 import FolderDetailView from '@/components/FolderDetailView';
 import LocalFolderView from '@/components/LocalFolderView';
 import AccountScreen from '@/components/AccountScreen';
+import NowPlayingScreen from '@/components/NowPlayingScreen';
 import {
   getOfflineTrackBlob,
   listOfflineTrackIds,
@@ -21,6 +22,28 @@ import {
   removePendingUpload,
 } from '@/lib/offline';
 import { uploadTrackFile, DUPLICATE_TRACK_ERROR } from '@/lib/uploadTrack';
+
+// Turns a raw pending-upload record (keyed by hash, holding a Blob) into
+// something that looks like a normal track for playback/UI purposes.
+function toPlayable(pending) {
+  return {
+    id: `pending:${pending.hash}`,
+    title: pending.title,
+    artist: pending.artist,
+    blob: pending.blob,
+    isPending: true,
+    hash: pending.hash,
+  };
+}
+
+function shuffleArray(arr) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 export default function AppShell({ userName }) {
   const [section, setSection] = useState('home'); // 'home' | 'folders' | 'allsongs' | 'account'
@@ -38,14 +61,17 @@ export default function AppShell({ userName }) {
   const [isOnline, setIsOnline] = useState(true);
 
   // Playback works off a "queue" — whichever list of tracks the person is
-  // currently playing from (All Songs, or a specific folder) — rather than
-  // always assuming the global library.
+  // currently playing from (All Songs, a folder, or the local pending list) —
+  // rather than always assuming the global library.
   const [queue, setQueue] = useState([]);
   const [queueIndex, setQueueIndex] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackError, setPlaybackError] = useState('');
+  const [shuffle, setShuffle] = useState(false);
+  const [loop, setLoop] = useState(false);
+  const [showNowPlaying, setShowNowPlaying] = useState(false);
 
   const audioRef = useRef(null);
   const objectUrlRef = useRef(null);
@@ -57,7 +83,7 @@ export default function AppShell({ userName }) {
 
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
     const onLoadedMetadata = () => setDuration(audio.duration || 0);
-    const onEnded = () => playNext();
+    const onEnded = () => advanceOnEnd();
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
 
@@ -147,9 +173,12 @@ export default function AppShell({ userName }) {
     }
   }
 
-  // Plays a track from a given list (the All Songs library, or a folder's
-  // track list) starting at `index`, and remembers that list as the queue so
-  // next/prev keep working within whichever list you were playing from.
+  // Plays a track from a given list (All Songs, a folder, or the pending
+  // local queue) starting at `index`, and remembers that list as the queue
+  // so next/prev/shuffle/loop keep working within it. Tracks that carry a
+  // `.blob` directly (pending uploads not yet synced) play straight from
+  // that Blob; everything else falls back to an offline-downloaded copy if
+  // one exists, or streams from the cloud URL.
   const playFromQueue = useCallback(async (list, index) => {
     const track = list[index];
     const audio = audioRef.current;
@@ -158,6 +187,7 @@ export default function AppShell({ userName }) {
     setPlaybackError('');
     setQueue(list);
     setQueueIndex(index);
+    setShowNowPlaying(true);
 
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
@@ -165,13 +195,20 @@ export default function AppShell({ userName }) {
     }
 
     try {
-      const offlineBlob = await getOfflineTrackBlob(track.id);
-      if (offlineBlob) {
-        const url = URL.createObjectURL(offlineBlob);
+      if (track.blob) {
+        // A song that only exists locally so far (queued offline, not yet uploaded).
+        const url = URL.createObjectURL(track.blob);
         objectUrlRef.current = url;
         audio.src = url;
       } else {
-        audio.src = track.blob_url;
+        const offlineBlob = await getOfflineTrackBlob(track.id);
+        if (offlineBlob) {
+          const url = URL.createObjectURL(offlineBlob);
+          objectUrlRef.current = url;
+          audio.src = url;
+        } else {
+          audio.src = track.blob_url;
+        }
       }
       await audio.play();
     } catch {
@@ -193,6 +230,8 @@ export default function AppShell({ userName }) {
     }
   }
 
+  // Manual "next"/"previous" always wraps around the queue — that's the
+  // useful behavior when someone is actively skipping through songs.
   function playNext() {
     if (queue.length === 0) return;
     const next = queueIndex + 1 < queue.length ? queueIndex + 1 : 0;
@@ -203,6 +242,46 @@ export default function AppShell({ userName }) {
     if (queue.length === 0) return;
     const prev = queueIndex - 1 >= 0 ? queueIndex - 1 : queue.length - 1;
     playFromQueue(queue, prev);
+  }
+
+  // What happens when a song finishes on its own: by default, play through
+  // the list in order and stop after the last track. With Loop on, wrap
+  // back around to the start and keep going.
+  function advanceOnEnd() {
+    if (queue.length === 0) return;
+    const atEnd = queueIndex + 1 >= queue.length;
+    if (atEnd && !loop) {
+      audioRef.current?.pause();
+      return;
+    }
+    const next = atEnd ? 0 : queueIndex + 1;
+    playFromQueue(queue, next);
+  }
+
+  function toggleShuffle() {
+    setShuffle((prev) => {
+      const turningOn = !prev;
+      if (turningOn && queue.length > 0) {
+        // Shuffle only the upcoming songs — leave what's already playing in place.
+        const head = queue.slice(0, queueIndex + 1);
+        const tail = shuffleArray(queue.slice(queueIndex + 1));
+        setQueue([...head, ...tail]);
+      }
+      return turningOn;
+    });
+  }
+
+  function toggleLoop() {
+    setLoop((prev) => !prev);
+  }
+
+  // Shuffles an entire list and starts playing it from the top — used by the
+  // Shuffle button inside a folder.
+  function shufflePlay(list) {
+    if (list.length === 0) return;
+    const shuffled = shuffleArray(list);
+    setShuffle(true);
+    playFromQueue(shuffled, 0);
   }
 
   function seekTo(seconds) {
@@ -222,6 +301,11 @@ export default function AppShell({ userName }) {
   }
 
   async function handleCancelPending(hash) {
+    if (queue[queueIndex]?.hash === hash) {
+      audioRef.current?.pause();
+      setQueueIndex(-1);
+      setShowNowPlaying(false);
+    }
     await removePendingUpload(hash);
     await refreshPendingUploads();
   }
@@ -270,10 +354,20 @@ export default function AppShell({ userName }) {
       if (wasCurrent) {
         audioRef.current?.pause();
         setQueueIndex(-1);
+        setShowNowPlaying(false);
       }
     } catch {
       setLoadError('Could not delete that track. Try again.');
     }
+  }
+
+  async function handleAddToFolder(trackId, folderId) {
+    const res = await fetch(`/api/folders/${folderId}/tracks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackId }),
+    });
+    if (!res.ok) throw new Error('Could not add song to folder.');
   }
 
   function navigate(nextSection) {
@@ -282,6 +376,7 @@ export default function AppShell({ userName }) {
   }
 
   const currentTrack = queueIndex >= 0 ? queue[queueIndex] : null;
+  const pendingPlayable = pendingUploads.map(toPlayable);
 
   return (
     <div className="app-shell">
@@ -308,9 +403,12 @@ export default function AppShell({ userName }) {
         {section === 'folders' && selectedFolder && selectedFolder.virtual && (
           <LocalFolderView
             pendingUploads={pendingUploads}
+            currentTrackId={currentTrack?.id}
+            isPlaying={isPlaying}
             syncing={syncing}
             syncProgress={syncProgress}
             isOnline={isOnline}
+            onPlay={(index) => playFromQueue(pendingPlayable, index)}
             onSync={handleSyncPendingUploads}
             onCancel={handleCancelPending}
             onBack={() => setSelectedFolder(null)}
@@ -325,6 +423,7 @@ export default function AppShell({ userName }) {
             isPlaying={isPlaying}
             offlineIds={offlineIds}
             onPlayQueue={playFromQueue}
+            onShufflePlay={shufflePlay}
             onTogglePlayPause={togglePlayPause}
             onBack={() => setSelectedFolder(null)}
           />
@@ -343,6 +442,7 @@ export default function AppShell({ userName }) {
             onDelete={handleDelete}
             onOfflineChange={refreshOfflineIds}
             pendingUploads={pendingUploads}
+            onPlayPending={(index) => playFromQueue(pendingPlayable, index)}
             syncing={syncing}
             syncProgress={syncProgress}
             isOnline={isOnline}
@@ -364,7 +464,29 @@ export default function AppShell({ userName }) {
         onNext={playNext}
         onPrev={playPrev}
         onSeek={seekTo}
+        onExpand={() => currentTrack && setShowNowPlaying(true)}
       />
+
+      {showNowPlaying && currentTrack && (
+        <NowPlayingScreen
+          track={currentTrack}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          shuffle={shuffle}
+          loop={loop}
+          onClose={() => setShowNowPlaying(false)}
+          onTogglePlayPause={togglePlayPause}
+          onNext={playNext}
+          onPrev={playPrev}
+          onSeek={seekTo}
+          onToggleShuffle={toggleShuffle}
+          onToggleLoop={toggleLoop}
+          onDelete={handleDelete}
+          onRemovePending={handleCancelPending}
+          onAddToFolder={handleAddToFolder}
+        />
+      )}
 
       <BottomNav active={section} onNavigate={navigate} />
     </div>

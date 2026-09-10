@@ -18,6 +18,7 @@ export default function Library({
   onDelete,
   onOfflineChange,
   pendingUploads,
+  onPlayPending,
   syncing,
   syncProgress,
   isOnline,
@@ -108,9 +109,12 @@ export default function Library({
 
       <LocalSongsPanel
         pendingUploads={pendingUploads}
+        currentTrackId={currentTrackId}
+        isPlaying={isPlaying}
         syncing={syncing}
         syncProgress={syncProgress}
         isOnline={isOnline}
+        onPlay={onPlayPending}
         onSync={onSync}
         onCancel={onCancelPending}
       />

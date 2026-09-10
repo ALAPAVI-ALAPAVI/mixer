@@ -115,6 +115,17 @@ Put the result in `NEXTAUTH_SECRET`. Use a different one for local vs. productio
   reopening the app with no connection still shows your library (with a small notice) —
   playback still requires either the network or the song having been explicitly
   downloaded for offline listening.
+- **Songs queued offline are playable immediately** — a song added while offline (or one
+  still waiting in the "Local" queue for any reason) plays straight from the copy already
+  sitting in the browser, with no need to wait for it to reach the cloud first.
+- **Now Playing screen:** tapping any song (or the mini player bar at the bottom) opens a
+  full-screen player with play/pause, next/previous, Shuffle, Loop, a seek bar, and a
+  ⋮ menu for "Add to folder" / "Delete" (or "Remove from queue" for a not-yet-synced
+  local song). Minimize with the ⌄ at the top.
+- **Playback order:** by default, a folder or the library plays straight through and stops
+  after the last song. Turning Loop on (from the Now Playing screen) makes it wrap back to
+  the start instead. Shuffle reorders the upcoming songs in the current queue; the Shuffle
+  button inside a folder immediately shuffles and plays that folder's songs from the top.
 
 - **Auth:** NextAuth handles both Google sign-in and email/password sign-in. Both map onto
   the same `users` table by email — so if you sign up with email/password and later sign in

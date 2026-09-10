@@ -1,6 +1,16 @@
 'use client';
 
-export default function LocalSongsPanel({ pendingUploads, syncing, syncProgress, isOnline, onSync, onCancel }) {
+export default function LocalSongsPanel({
+  pendingUploads,
+  currentTrackId,
+  isPlaying,
+  syncing,
+  syncProgress,
+  isOnline,
+  onPlay,
+  onSync,
+  onCancel,
+}) {
   return (
     <section>
       <div className="library-header">
@@ -12,20 +22,32 @@ export default function LocalSongsPanel({ pendingUploads, syncing, syncProgress,
       ) : (
         <>
           <div className="track-list">
-            {pendingUploads.map((item) => (
-              <div key={item.hash} className="track-row">
-                <div className="track-meta">
-                  <div className="title">{item.title}</div>
-                  {item.artist && <div className="artist">{item.artist}</div>}
-                </div>
-                <span className="pending-badge">Not synced</span>
-                <div className="track-actions">
-                  <button className="btn btn-danger" disabled={syncing} onClick={() => onCancel(item.hash)}>
-                    Cancel
+            {pendingUploads.map((item, index) => {
+              const trackId = `pending:${item.hash}`;
+              const isCurrent = trackId === currentTrackId;
+
+              return (
+                <div key={item.hash} className={`track-row${isCurrent ? ' active' : ''}`}>
+                  <button
+                    className="btn-icon"
+                    onClick={() => onPlay(index)}
+                    aria-label={isCurrent && isPlaying ? 'Pause' : 'Play'}
+                  >
+                    {isCurrent && isPlaying ? '❚❚' : '▶'}
                   </button>
+                  <div className="track-meta">
+                    <div className="title">{item.title}</div>
+                    {item.artist && <div className="artist">{item.artist}</div>}
+                  </div>
+                  <span className="pending-badge">Not synced</span>
+                  <div className="track-actions">
+                    <button className="btn btn-danger" disabled={syncing} onClick={() => onCancel(item.hash)}>
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="sync-row">

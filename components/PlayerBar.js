@@ -9,7 +9,7 @@ function formatTime(seconds) {
   return `${m}:${s}`;
 }
 
-export default function PlayerBar({ track, isPlaying, currentTime, duration, onTogglePlayPause, onNext, onPrev, onSeek }) {
+export default function PlayerBar({ track, isPlaying, currentTime, duration, onTogglePlayPause, onNext, onPrev, onSeek, onExpand }) {
   if (!track) {
     return (
       <div className="player-bar">
@@ -24,7 +24,7 @@ export default function PlayerBar({ track, isPlaying, currentTime, duration, onT
 
   return (
     <div className="player-bar">
-      <div className="now-playing">
+      <div className="now-playing" onClick={onExpand} role="button" tabIndex={0}>
         <div className="title">{track.title}</div>
         {track.artist && <div className="artist">{track.artist}</div>}
       </div>

@@ -2,7 +2,18 @@
 
 import LocalSongsPanel from '@/components/LocalSongsPanel';
 
-export default function LocalFolderView({ pendingUploads, syncing, syncProgress, isOnline, onSync, onCancel, onBack }) {
+export default function LocalFolderView({
+  pendingUploads,
+  currentTrackId,
+  isPlaying,
+  syncing,
+  syncProgress,
+  isOnline,
+  onPlay,
+  onSync,
+  onCancel,
+  onBack,
+}) {
   return (
     <div>
       <div className="library-header">
@@ -12,9 +23,12 @@ export default function LocalFolderView({ pendingUploads, syncing, syncProgress,
       </div>
       <LocalSongsPanel
         pendingUploads={pendingUploads}
+        currentTrackId={currentTrackId}
+        isPlaying={isPlaying}
         syncing={syncing}
         syncProgress={syncProgress}
         isOnline={isOnline}
+        onPlay={onPlay}
         onSync={onSync}
         onCancel={onCancel}
       />

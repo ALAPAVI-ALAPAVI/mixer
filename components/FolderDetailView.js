@@ -10,6 +10,7 @@ export default function FolderDetailView({
   isPlaying,
   offlineIds,
   onPlayQueue,
+  onShufflePlay,
   onTogglePlayPause,
   onBack,
 }) {
@@ -80,6 +81,9 @@ export default function FolderDetailView({
       </div>
       <div className="library-header">
         <h2>{folder.name}</h2>
+        <button className="btn btn-ghost" onClick={() => setShowAddModal(true)}>
+          + Add song
+        </button>
       </div>
 
       {error && <div className="form-error">{error}</div>}
@@ -123,9 +127,11 @@ export default function FolderDetailView({
         </div>
       )}
 
-      <button className="fab" onClick={() => setShowAddModal(true)} aria-label="Add song">
-        +
-      </button>
+      {tracks.length > 0 && (
+        <button className="fab" onClick={() => onShufflePlay(tracks)} aria-label="Shuffle play">
+          🔀
+        </button>
+      )}
 
       {showAddModal && (
         <Modal title="Add a song" onClose={() => setShowAddModal(false)}>
