@@ -10,7 +10,9 @@ export default function LocalFolderView({
   syncProgress,
   isOnline,
   onPlay,
+  onShufflePlay,
   onSync,
+  onSyncOne,
   onCancel,
   onBack,
 }) {
@@ -29,7 +31,9 @@ export default function LocalFolderView({
         syncProgress={syncProgress}
         isOnline={isOnline}
         onPlay={onPlay}
+        onShufflePlay={onShufflePlay}
         onSync={onSync}
+        onSyncOne={onSyncOne}
         onCancel={onCancel}
       />
     </div>

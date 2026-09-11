@@ -126,6 +126,21 @@ Put the result in `NEXTAUTH_SECRET`. Use a different one for local vs. productio
   after the last song. Turning Loop on (from the Now Playing screen) makes it wrap back to
   the start instead. Shuffle reorders the upcoming songs in the current queue; the Shuffle
   button inside a folder immediately shuffles and plays that folder's songs from the top.
+- **Home is the upload screen.** Uploading now happens from Home rather than from All Songs
+  — All Songs is purely for browsing/managing what's already there.
+- **All Songs has a Cloud / Local tab bar** at the top instead of stacked sections, to
+  switch between your synced library and whatever's still queued locally.
+- **Every song has a ⋮ menu** with the actions that make sense for where it's showing up:
+  a cloud song offers Download/Remove download, Add to folder, and Delete; a folder song
+  offers Download, Add to another folder, and Remove from this folder (not a full delete);
+  a not-yet-synced local song offers Upload now and Remove from queue. Tapping anywhere on
+  a song's row plays it — not just a small icon.
+- **Folders have a ⋮ menu too** (on real, non-default folders) for Rename and Delete.
+- **A song you uploaded stays playable offline on that same device**, automatically, with
+  no need to separately "download" a file that device already has the bytes for — e.g.
+  upload 3 songs on your phone, then go offline: your phone can still play them. A second
+  device only gets that offline access once it explicitly downloads that song (or once its
+  own upload of a duplicate file was rejected in favor of the existing one).
 
 - **Auth:** NextAuth handles both Google sign-in and email/password sign-in. Both map onto
   the same `users` table by email — so if you sign up with email/password and later sign in

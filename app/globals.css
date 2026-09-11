@@ -538,6 +538,7 @@ main.content {
 }
 
 .folder-tile {
+  position: relative;
   aspect-ratio: 1;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -549,6 +550,7 @@ main.content {
   gap: 6px;
   padding: 12px;
   text-align: center;
+  cursor: pointer;
 }
 
 .folder-tile:hover {
@@ -575,6 +577,7 @@ main.content {
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--border);
+  cursor: pointer;
 }
 
 .back-link {
@@ -824,4 +827,92 @@ main.content {
 .menu-item {
   width: 100%;
   text-align: left;
+}
+
+/* --- Folder 3-dot menu button --- */
+.folder-menu-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: none;
+  color: var(--text);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.folder-list-row .folder-menu-btn {
+  position: static;
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+
+/* --- Tappable track row (whole row plays, not just the icon) --- */
+.track-row-tap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.track-play-indicator {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+/* --- Segmented nav (Cloud / Local tabs) --- */
+.segmented-nav {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 18px;
+}
+
+.segmented-item {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 8px;
+  border-radius: 7px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.segmented-item.active {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+/* --- Upload hero (Home screen) --- */
+.upload-hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 20px;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.upload-hero-text {
+  color: var(--text-muted);
+  margin: 0 0 16px;
 }

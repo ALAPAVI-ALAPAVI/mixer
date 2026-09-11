@@ -1,5 +1,7 @@
 'use client';
 
+import TrackRow from '@/components/TrackRow';
+
 export default function LocalSongsPanel({
   pendingUploads,
   currentTrackId,
@@ -8,7 +10,9 @@ export default function LocalSongsPanel({
   syncProgress,
   isOnline,
   onPlay,
+  onShufflePlay,
   onSync,
+  onSyncOne,
   onCancel,
 }) {
   return (
@@ -27,36 +31,35 @@ export default function LocalSongsPanel({
               const isCurrent = trackId === currentTrackId;
 
               return (
-                <div key={item.hash} className={`track-row${isCurrent ? ' active' : ''}`}>
-                  <button
-                    className="btn-icon"
-                    onClick={() => onPlay(index)}
-                    aria-label={isCurrent && isPlaying ? 'Pause' : 'Play'}
-                  >
-                    {isCurrent && isPlaying ? '❚❚' : '▶'}
-                  </button>
-                  <div className="track-meta">
-                    <div className="title">{item.title}</div>
-                    {item.artist && <div className="artist">{item.artist}</div>}
-                  </div>
-                  <span className="pending-badge">Not synced</span>
-                  <div className="track-actions">
-                    <button className="btn btn-danger" disabled={syncing} onClick={() => onCancel(item.hash)}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
+                <TrackRow
+                  key={item.hash}
+                  track={item}
+                  isCurrent={isCurrent}
+                  isPlaying={isPlaying}
+                  onPlay={() => onPlay(index)}
+                  badge={<span className="pending-badge">Not synced</span>}
+                  menuActions={[
+                    { label: isOnline ? 'Upload now' : 'Upload now (offline)', onClick: () => onSyncOne(item.hash) },
+                    { label: 'Remove from queue', danger: true, onClick: () => onCancel(item.hash) },
+                  ]}
+                />
               );
             })}
           </div>
+
+          {pendingUploads.length > 1 && (
+            <button className="fab" onClick={onShufflePlay} aria-label="Shuffle play local songs">
+              🔀
+            </button>
+          )}
 
           <div className="sync-row">
             <button className="btn btn-primary" disabled={!isOnline || syncing} onClick={onSync}>
               {syncing
                 ? `Uploading… (${syncProgress.done}/${syncProgress.total})`
                 : isOnline
-                  ? 'Upload to Cloud'
-                  : 'Upload to Cloud (offline)'}
+                  ? 'Upload All to Cloud'
+                  : 'Upload All to Cloud (offline)'}
             </button>
             {syncing && (
               <div className="progress-track">

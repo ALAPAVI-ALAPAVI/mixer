@@ -15,12 +15,15 @@ import {
   getOfflineTrackBlob,
   listOfflineTrackIds,
   removeOfflineTrack,
+  saveTrackOffline,
+  saveTrackOfflineFromBlob,
   cacheTracksMeta,
   getCachedTracksMeta,
   queuePendingUpload,
   listPendingUploads,
   removePendingUpload,
 } from '@/lib/offline';
+import { hashFile } from '@/lib/hash';
 import { uploadTrackFile, DUPLICATE_TRACK_ERROR } from '@/lib/uploadTrack';
 
 // Turns a raw pending-upload record (keyed by hash, holding a Blob) into
@@ -59,6 +62,9 @@ export default function AppShell({ userName }) {
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ done: 0, total: 0 });
   const [isOnline, setIsOnline] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [uploadNotice, setUploadNotice] = useState('');
 
   // Playback works off a "queue" — whichever list of tracks the person is
   // currently playing from (All Songs, a folder, or the local pending list) —
@@ -76,6 +82,16 @@ export default function AppShell({ userName }) {
   const audioRef = useRef(null);
   const objectUrlRef = useRef(null);
 
+  // Refs mirroring the latest queue/loop state, so the audio element's
+  // long-lived "ended" listener (attached once on mount) always acts on
+  // current values instead of the stale ones from its first render.
+  const queueRef = useRef(queue);
+  const queueIndexRef = useRef(queueIndex);
+  const loopRef = useRef(loop);
+  useEffect(() => { queueRef.current = queue; }, [queue]);
+  useEffect(() => { queueIndexRef.current = queueIndex; }, [queueIndex]);
+  useEffect(() => { loopRef.current = loop; }, [loop]);
+
   // Set up the audio element once on mount (browser-only).
   useEffect(() => {
     const audio = new Audio();
@@ -83,7 +99,18 @@ export default function AppShell({ userName }) {
 
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
     const onLoadedMetadata = () => setDuration(audio.duration || 0);
-    const onEnded = () => advanceOnEnd();
+    const onEnded = () => {
+      const q = queueRef.current;
+      const idx = queueIndexRef.current;
+      if (q.length === 0) return;
+      const atEnd = idx + 1 >= q.length;
+      if (atEnd && !loopRef.current) {
+        audio.pause();
+        return;
+      }
+      const next = atEnd ? 0 : idx + 1;
+      playFromQueueRef.current(q, next);
+    };
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
 
@@ -135,6 +162,7 @@ export default function AppShell({ userName }) {
       setTracks(data.tracks);
       setUsingCachedLibrary(false);
       cacheTracksMeta(data.tracks).catch(() => {});
+      return data.tracks;
     } catch {
       // Likely offline — fall back to whatever we last successfully loaded,
       // so the library isn't just empty after a reload with no connection.
@@ -150,6 +178,7 @@ export default function AppShell({ userName }) {
       } catch {
         setLoadError('Could not load your library. Check your connection and try again.');
       }
+      return [];
     } finally {
       setLoading(false);
     }
@@ -216,6 +245,11 @@ export default function AppShell({ userName }) {
     }
   }, []);
 
+  // The "ended" listener (attached once, see the ref dance above) needs a
+  // stable way to call the latest playFromQueue.
+  const playFromQueueRef = useRef(playFromQueue);
+  useEffect(() => { playFromQueueRef.current = playFromQueue; }, [playFromQueue]);
+
   function togglePlayPause() {
     const audio = audioRef.current;
     if (!audio) return;
@@ -244,20 +278,6 @@ export default function AppShell({ userName }) {
     playFromQueue(queue, prev);
   }
 
-  // What happens when a song finishes on its own: by default, play through
-  // the list in order and stop after the last track. With Loop on, wrap
-  // back around to the start and keep going.
-  function advanceOnEnd() {
-    if (queue.length === 0) return;
-    const atEnd = queueIndex + 1 >= queue.length;
-    if (atEnd && !loop) {
-      audioRef.current?.pause();
-      return;
-    }
-    const next = atEnd ? 0 : queueIndex + 1;
-    playFromQueue(queue, next);
-  }
-
   function toggleShuffle() {
     setShuffle((prev) => {
       const turningOn = !prev;
@@ -276,7 +296,7 @@ export default function AppShell({ userName }) {
   }
 
   // Shuffles an entire list and starts playing it from the top — used by the
-  // Shuffle button inside a folder.
+  // Shuffle button inside a folder and the Local (offline) queue.
   function shufflePlay(list) {
     if (list.length === 0) return;
     const shuffled = shuffleArray(list);
@@ -289,10 +309,58 @@ export default function AppShell({ userName }) {
     if (audio) audio.currentTime = seconds;
   }
 
-  async function handleUploadDone() {
-    // The new row is created by a server-side callback, not returned directly
-    // to the browser, so refresh from the source of truth instead of guessing.
-    await fetchTracks();
+  // Centralized upload path — used by the Home screen's uploader. Handles
+  // fingerprinting for duplicate detection, uploading straight to Blob
+  // storage, falling back to the offline queue on failure, and — importantly
+  // — automatically keeping a locally-playable copy on THIS device once the
+  // upload succeeds, since the bytes are already sitting right here in memory
+  // and there's no reason to make the uploading device re-download its own file.
+  async function handleUploadFile(file) {
+    setUploadError('');
+    setUploadNotice('');
+    setUploading(true);
+    try {
+      const hash = await hashFile(file);
+
+      if (tracks.some((t) => t.content_hash === hash)) {
+        setUploadError('This song already exists in your library.');
+        return;
+      }
+      if (pendingUploads.some((p) => p.hash === hash)) {
+        setUploadError('This song is already queued to upload.');
+        return;
+      }
+
+      const title = file.name.replace(/\.[^/.]+$/, '');
+
+      try {
+        await uploadTrackFile(file, { hash, title });
+
+        // The database row is created by a server-to-server callback that
+        // fires right after the upload lands, so it can trail by a moment.
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const freshTracks = await fetchTracks();
+        const newTrack = freshTracks.find((t) => t.content_hash === hash);
+        if (newTrack) {
+          await saveTrackOfflineFromBlob(newTrack.id, file, { title: newTrack.title, artist: newTrack.artist });
+          await refreshOfflineIds();
+        }
+        setUploadNotice(`"${title}" uploaded.`);
+      } catch (err) {
+        if (err.message && err.message.includes(DUPLICATE_TRACK_ERROR)) {
+          setUploadError('This song already exists in your library.');
+        } else {
+          // Couldn't reach the server — most likely offline. Queue it locally
+          // instead of just failing, so the upload isn't lost.
+          await handleQueueOffline(file, { hash, title });
+          setUploadNotice(`"${title}" saved locally — will upload once you're online.`);
+        }
+      }
+    } catch (err) {
+      setUploadError(err.message || 'Could not process that file.');
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleQueueOffline(file, { hash, title, artist }) {
@@ -310,6 +378,41 @@ export default function AppShell({ userName }) {
     await refreshPendingUploads();
   }
 
+  // Uploads one queued item to the cloud and, on success, keeps a locally
+  // playable copy on this device (no redundant re-download of a file this
+  // device already has). Returns true on success, false if it should stay
+  // queued (e.g. still offline).
+  async function syncSingleItem(item) {
+    try {
+      const file = new File([item.blob], item.fileName, { type: item.fileType });
+      await uploadTrackFile(file, { hash: item.hash, title: item.title, artist: item.artist });
+      await removePendingUpload(item.hash);
+
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      const freshTracks = await fetchTracks();
+      const matched = freshTracks.find((t) => t.content_hash === item.hash);
+      if (matched) {
+        await saveTrackOfflineFromBlob(matched.id, item.blob, { title: matched.title, artist: matched.artist });
+        await refreshOfflineIds();
+      }
+      return true;
+    } catch (err) {
+      if (err.message && err.message.includes(DUPLICATE_TRACK_ERROR)) {
+        // Already uploaded from elsewhere in the meantime — safe to drop from the queue.
+        await removePendingUpload(item.hash);
+        return true;
+      }
+      return false;
+    }
+  }
+
+  async function handleSyncOne(hash) {
+    const item = pendingUploads.find((p) => p.hash === hash);
+    if (!item) return;
+    await syncSingleItem(item);
+    await refreshPendingUploads();
+  }
+
   async function handleSyncPendingUploads() {
     const list = await listPendingUploads();
     if (list.length === 0) return;
@@ -319,27 +422,13 @@ export default function AppShell({ userName }) {
 
     let done = 0;
     for (const item of list) {
-      try {
-        const file = new File([item.blob], item.fileName, { type: item.fileType });
-        await uploadTrackFile(file, { hash: item.hash, title: item.title, artist: item.artist });
-        await removePendingUpload(item.hash);
-        done += 1;
-        setSyncProgress({ done, total: list.length });
-      } catch (err) {
-        if (err.message && err.message.includes(DUPLICATE_TRACK_ERROR)) {
-          // Already uploaded from elsewhere in the meantime — safe to drop from the queue.
-          await removePendingUpload(item.hash);
-          done += 1;
-          setSyncProgress({ done, total: list.length });
-          continue;
-        }
-        // Probably lost connection again — stop here, leave the rest queued for next time.
-        break;
-      }
+      const ok = await syncSingleItem(item);
+      if (!ok) break; // probably lost connection again — leave the rest queued for next time
+      done += 1;
+      setSyncProgress({ done, total: list.length });
     }
 
     await refreshPendingUploads();
-    await fetchTracks();
     setSyncing(false);
   }
 
@@ -370,6 +459,29 @@ export default function AppShell({ userName }) {
     if (!res.ok) throw new Error('Could not add song to folder.');
   }
 
+  async function handleDownloadToggle(track, isOffline) {
+    if (isOffline) {
+      await removeOfflineTrack(track.id);
+    } else {
+      await saveTrackOffline(track);
+    }
+    await refreshOfflineIds();
+  }
+
+  async function handleRenameFolder(folderId, name) {
+    const res = await fetch(`/api/folders/${folderId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error('Could not rename folder.');
+  }
+
+  async function handleDeleteFolder(folderId) {
+    const res = await fetch(`/api/folders/${folderId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Could not delete folder.');
+  }
+
   function navigate(nextSection) {
     setSection(nextSection);
     setSelectedFolder(null);
@@ -394,10 +506,24 @@ export default function AppShell({ userName }) {
         )}
         {playbackError && <div className="form-error">{playbackError}</div>}
 
-        {section === 'home' && <HomeScreen userName={userName} onNavigate={navigate} />}
+        {section === 'home' && (
+          <HomeScreen
+            userName={userName}
+            onNavigate={navigate}
+            uploading={uploading}
+            uploadError={uploadError}
+            uploadNotice={uploadNotice}
+            onUpload={handleUploadFile}
+          />
+        )}
 
         {section === 'folders' && !selectedFolder && (
-          <FoldersScreen onOpenFolder={setSelectedFolder} pendingCount={pendingUploads.length} />
+          <FoldersScreen
+            onOpenFolder={setSelectedFolder}
+            pendingCount={pendingUploads.length}
+            onRenameFolder={handleRenameFolder}
+            onDeleteFolder={handleDeleteFolder}
+          />
         )}
 
         {section === 'folders' && selectedFolder && selectedFolder.virtual && (
@@ -409,7 +535,9 @@ export default function AppShell({ userName }) {
             syncProgress={syncProgress}
             isOnline={isOnline}
             onPlay={(index) => playFromQueue(pendingPlayable, index)}
+            onShufflePlay={() => shufflePlay(pendingPlayable)}
             onSync={handleSyncPendingUploads}
+            onSyncOne={handleSyncOne}
             onCancel={handleCancelPending}
             onBack={() => setSelectedFolder(null)}
           />
@@ -425,6 +553,8 @@ export default function AppShell({ userName }) {
             onPlayQueue={playFromQueue}
             onShufflePlay={shufflePlay}
             onTogglePlayPause={togglePlayPause}
+            onDownloadToggle={handleDownloadToggle}
+            onAddToFolder={handleAddToFolder}
             onBack={() => setSelectedFolder(null)}
           />
         )}
@@ -437,17 +567,19 @@ export default function AppShell({ userName }) {
             isPlaying={isPlaying}
             offlineIds={offlineIds}
             onPlay={(index) => playFromQueue(tracks, index)}
+            onShufflePlay={() => shufflePlay(tracks)}
             onTogglePlayPause={togglePlayPause}
-            onUploadDone={handleUploadDone}
             onDelete={handleDelete}
-            onOfflineChange={refreshOfflineIds}
+            onDownloadToggle={handleDownloadToggle}
+            onAddToFolder={handleAddToFolder}
             pendingUploads={pendingUploads}
             onPlayPending={(index) => playFromQueue(pendingPlayable, index)}
+            onShufflePending={() => shufflePlay(pendingPlayable)}
             syncing={syncing}
             syncProgress={syncProgress}
             isOnline={isOnline}
-            onQueueOffline={handleQueueOffline}
             onSync={handleSyncPendingUploads}
+            onSyncOne={handleSyncOne}
             onCancelPending={handleCancelPending}
           />
         )}

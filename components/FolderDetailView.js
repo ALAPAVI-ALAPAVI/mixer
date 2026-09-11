@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Modal from '@/components/Modal';
+import TrackRow from '@/components/TrackRow';
+import FolderPickerModal from '@/components/FolderPickerModal';
 
 export default function FolderDetailView({
   folder,
@@ -12,6 +14,8 @@ export default function FolderDetailView({
   onPlayQueue,
   onShufflePlay,
   onTogglePlayPause,
+  onDownloadToggle,
+  onAddToFolder,
   onBack,
 }) {
   const [tracks, setTracks] = useState([]);
@@ -19,6 +23,7 @@ export default function FolderDetailView({
   const [error, setError] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [busyTrackId, setBusyTrackId] = useState(null);
+  const [folderPickerTrackId, setFolderPickerTrackId] = useState(null);
 
   useEffect(() => {
     fetchFolderTracks();
@@ -70,6 +75,17 @@ export default function FolderDetailView({
     }
   }
 
+  async function handleDownloadToggle(track, isOffline) {
+    setBusyTrackId(track.id);
+    try {
+      await onDownloadToggle(track, isOffline);
+    } catch {
+      setError('Could not update the offline copy of that track.');
+    } finally {
+      setBusyTrackId(null);
+    }
+  }
+
   const availableToAdd = allTracks.filter((t) => !tracks.some((ft) => ft.id === t.id));
 
   return (
@@ -100,28 +116,22 @@ export default function FolderDetailView({
             const busy = busyTrackId === track.id;
 
             return (
-              <div key={track.id} className={`track-row${isCurrent ? ' active' : ''}`}>
-                <button
-                  className="btn-icon"
-                  onClick={() => (isCurrent ? onTogglePlayPause() : onPlayQueue(tracks, index))}
-                  aria-label={isCurrent && isPlaying ? 'Pause' : 'Play'}
-                >
-                  {isCurrent && isPlaying ? '❚❚' : '▶'}
-                </button>
-
-                <div className="track-meta">
-                  <div className="title">{track.title}</div>
-                  {track.artist && <div className="artist">{track.artist}</div>}
-                </div>
-
-                {isOffline && <span className="offline-badge">Downloaded</span>}
-
-                <div className="track-actions">
-                  <button className="btn btn-danger" disabled={busy} onClick={() => handleRemoveTrack(track)}>
-                    Remove
-                  </button>
-                </div>
-              </div>
+              <TrackRow
+                key={track.id}
+                track={track}
+                isCurrent={isCurrent}
+                isPlaying={isPlaying}
+                onPlay={() => (isCurrent ? onTogglePlayPause() : onPlayQueue(tracks, index))}
+                badge={isOffline ? <span className="offline-badge">Downloaded</span> : null}
+                menuActions={[
+                  {
+                    label: isOffline ? 'Remove download' : busy ? 'Saving…' : 'Download',
+                    onClick: () => handleDownloadToggle(track, isOffline),
+                  },
+                  { label: 'Add to another folder', onClick: () => setFolderPickerTrackId(track.id) },
+                  { label: 'Remove from this folder', danger: true, onClick: () => handleRemoveTrack(track) },
+                ]}
+              />
             );
           })}
         </div>
@@ -159,6 +169,14 @@ export default function FolderDetailView({
             </div>
           )}
         </Modal>
+      )}
+
+      {folderPickerTrackId && (
+        <FolderPickerModal
+          trackId={folderPickerTrackId}
+          onAddToFolder={onAddToFolder}
+          onClose={() => setFolderPickerTrackId(null)}
+        />
       )}
     </section>
   );

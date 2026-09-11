@@ -1,9 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { saveTrackOffline, removeOfflineTrack } from '@/lib/offline';
-import { hashFile } from '@/lib/hash';
-import { uploadTrackFile } from '@/lib/uploadTrack';
+import { useState } from 'react';
+import TrackRow from '@/components/TrackRow';
+import FolderPickerModal from '@/components/FolderPickerModal';
 import LocalSongsPanel from '@/components/LocalSongsPanel';
 
 export default function Library({
@@ -13,89 +12,32 @@ export default function Library({
   isPlaying,
   offlineIds,
   onPlay,
+  onShufflePlay,
   onTogglePlayPause,
-  onUploadDone,
   onDelete,
-  onOfflineChange,
+  onDownloadToggle,
+  onAddToFolder,
   pendingUploads,
   onPlayPending,
+  onShufflePending,
   syncing,
   syncProgress,
   isOnline,
-  onQueueOffline,
   onSync,
+  onSyncOne,
   onCancelPending,
 }) {
-  const fileInputRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
+  const [tab, setTab] = useState('cloud'); // 'cloud' | 'local'
+  const [error, setError] = useState('');
   const [busyTrackId, setBusyTrackId] = useState(null);
+  const [folderPickerTrackId, setFolderPickerTrackId] = useState(null);
 
-  async function handleFileChosen(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadError('');
-    setUploading(true);
-
-    try {
-      const hash = await hashFile(file);
-
-      // Dedup check against what we already know locally — catches the
-      // common case instantly, without needing the network.
-      if (tracks.some((t) => t.content_hash === hash)) {
-        setUploadError('This song already exists in your library.');
-        return;
-      }
-      if (pendingUploads.some((p) => p.hash === hash)) {
-        setUploadError('This song is already queued to upload.');
-        return;
-      }
-
-      const title = file.name.replace(/\.[^/.]+$/, '');
-
-      try {
-        // Uploads straight from the browser to Blob storage, bypassing the
-        // ~4.5MB request size limit that Vercel's serverless functions have.
-        await uploadTrackFile(file, { hash, title });
-
-        // The database row is created by a server-to-server callback that
-        // fires right after the upload lands, so it can trail by a moment.
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-        await onUploadDone();
-      } catch (err) {
-        if (err.message && err.message.includes('DUPLICATE_TRACK')) {
-          setUploadError('This song already exists in your library.');
-        } else {
-          // Couldn't reach the server — most likely offline. Queue it locally
-          // instead of just failing, so the upload isn't lost.
-          await onQueueOffline(file, { hash, title });
-        }
-      }
-    } catch (err) {
-      setUploadError(err.message || 'Could not process that file.');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
-
-  async function handleDownload(track) {
+  async function handleDownloadToggle(track, isOffline) {
     setBusyTrackId(track.id);
     try {
-      await saveTrackOffline(track);
-      onOfflineChange();
-    } catch (err) {
-      setUploadError('Could not save that track for offline use.');
-    } finally {
-      setBusyTrackId(null);
-    }
-  }
-
-  async function handleRemoveDownload(track) {
-    setBusyTrackId(track.id);
-    try {
-      await removeOfflineTrack(track.id);
-      onOfflineChange();
+      await onDownloadToggle(track, isOffline);
+    } catch {
+      setError('Could not update the offline copy of that track.');
     } finally {
       setBusyTrackId(null);
     }
@@ -107,101 +49,84 @@ export default function Library({
         <h2>All Songs</h2>
       </div>
 
-      <LocalSongsPanel
-        pendingUploads={pendingUploads}
-        currentTrackId={currentTrackId}
-        isPlaying={isPlaying}
-        syncing={syncing}
-        syncProgress={syncProgress}
-        isOnline={isOnline}
-        onPlay={onPlayPending}
-        onSync={onSync}
-        onCancel={onCancelPending}
-      />
+      <div className="segmented-nav">
+        <button className={`segmented-item${tab === 'cloud' ? ' active' : ''}`} onClick={() => setTab('cloud')}>
+          Cloud
+        </button>
+        <button className={`segmented-item${tab === 'local' ? ' active' : ''}`} onClick={() => setTab('local')}>
+          Local{pendingUploads.length > 0 ? ` (${pendingUploads.length})` : ''}
+        </button>
+      </div>
 
-      <section style={{ marginTop: '28px' }}>
-        <div className="library-header">
-          <h2>Cloud</h2>
-        </div>
+      {error && <div className="form-error">{error}</div>}
 
-        <div className="upload-row">
-          <button
-            className="btn btn-primary"
-            disabled={uploading}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {uploading ? 'Processing…' : 'Upload a song'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="audio/*"
-            hidden
-            onChange={handleFileChosen}
-          />
-        </div>
-
-        {uploadError && <div className="form-error">{uploadError}</div>}
-
-        {loading ? (
+      {tab === 'cloud' &&
+        (loading ? (
           <p style={{ color: 'var(--text-muted)' }}>Loading your library…</p>
         ) : tracks.length === 0 ? (
           <div className="empty-state">
-            Nothing here yet. Upload a song from your device to get started — it'll sync to
-            every device you sign into, and land in your default folder automatically.
+            Nothing here yet. Upload a song from the Home screen to get started — it'll sync
+            to every device you sign into, and land in your default folder automatically.
           </div>
         ) : (
-          <div className="track-list">
-            {tracks.map((track, index) => {
-              const isCurrent = track.id === currentTrackId;
-              const isOffline = offlineIds.has(track.id);
-              const busy = busyTrackId === track.id;
+          <>
+            <div className="track-list">
+              {tracks.map((track, index) => {
+                const isCurrent = track.id === currentTrackId;
+                const isOffline = offlineIds.has(track.id);
+                const busy = busyTrackId === track.id;
 
-              return (
-                <div key={track.id} className={`track-row${isCurrent ? ' active' : ''}`}>
-                  <button
-                    className="btn-icon"
-                    onClick={() => (isCurrent ? onTogglePlayPause() : onPlay(index))}
-                    aria-label={isCurrent && isPlaying ? 'Pause' : 'Play'}
-                  >
-                    {isCurrent && isPlaying ? '❚❚' : '▶'}
-                  </button>
+                return (
+                  <TrackRow
+                    key={track.id}
+                    track={track}
+                    isCurrent={isCurrent}
+                    isPlaying={isPlaying}
+                    onPlay={() => (isCurrent ? onTogglePlayPause() : onPlay(index))}
+                    badge={isOffline ? <span className="offline-badge">Downloaded</span> : null}
+                    menuActions={[
+                      {
+                        label: isOffline ? 'Remove download' : busy ? 'Saving…' : 'Download',
+                        onClick: () => handleDownloadToggle(track, isOffline),
+                      },
+                      { label: 'Add to folder', onClick: () => setFolderPickerTrackId(track.id) },
+                      { label: 'Delete', danger: true, onClick: () => onDelete(track) },
+                    ]}
+                  />
+                );
+              })}
+            </div>
+            {tracks.length > 1 && (
+              <button className="fab" onClick={onShufflePlay} aria-label="Shuffle play">
+                🔀
+              </button>
+            )}
+          </>
+        ))}
 
-                  <div className="track-meta">
-                    <div className="title">{track.title}</div>
-                    {track.artist && <div className="artist">{track.artist}</div>}
-                  </div>
+      {tab === 'local' && (
+        <LocalSongsPanel
+          pendingUploads={pendingUploads}
+          currentTrackId={currentTrackId}
+          isPlaying={isPlaying}
+          syncing={syncing}
+          syncProgress={syncProgress}
+          isOnline={isOnline}
+          onPlay={onPlayPending}
+          onShufflePlay={onShufflePending}
+          onSync={onSync}
+          onSyncOne={onSyncOne}
+          onCancel={onCancelPending}
+        />
+      )}
 
-                  {isOffline && <span className="offline-badge">Downloaded</span>}
-
-                  <div className="track-actions">
-                    {isOffline ? (
-                      <button
-                        className="btn btn-ghost"
-                        disabled={busy}
-                        onClick={() => handleRemoveDownload(track)}
-                      >
-                        Remove download
-                      </button>
-                    ) : (
-                      <button
-                        className="btn btn-ghost"
-                        disabled={busy}
-                        onClick={() => handleDownload(track)}
-                      >
-                        {busy ? 'Saving…' : 'Download'}
-                      </button>
-                    )}
-                    <button className="btn btn-danger" onClick={() => onDelete(track)}>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      {folderPickerTrackId && (
+        <FolderPickerModal
+          trackId={folderPickerTrackId}
+          onAddToFolder={onAddToFolder}
+          onClose={() => setFolderPickerTrackId(null)}
+        />
+      )}
     </div>
   );
 }
