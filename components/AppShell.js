@@ -96,6 +96,11 @@ export default function AppShell({ userName }) {
   // through history.back(), so this handler is the single place that
   // actually updates the state.
   useEffect(() => {
+    // Establishes a "floor" history entry so the phone/browser Back button
+    // never actually navigates away from this page — which would unload it
+    // and lose everything in memory (playback included) when reopened.
+    window.history.pushState({ mixerView: 'root' }, '');
+
     function onPopState() {
       if (showNowPlayingRef.current) {
         setShowNowPlaying(false);
@@ -103,7 +108,12 @@ export default function AppShell({ userName }) {
       }
       if (selectedFolderRef.current) {
         setSelectedFolder(null);
+        return;
       }
+      // Nothing left to close in-app — replant the floor entry immediately
+      // so Back doesn't fall through to a real navigation. Whatever's
+      // playing keeps playing; the app just stays exactly where it is.
+      window.history.pushState({ mixerView: 'root' }, '');
     }
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);

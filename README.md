@@ -153,8 +153,13 @@ Put the result in `NEXTAUTH_SECRET`. Use a different one for local vs. productio
   environment, so it's worth double-checking the feel on your actual device.
 - **The hardware/phone Back button acts like an in-app back button** — pressing it while a
   folder or the Now Playing screen is open closes just that, instead of leaving the app.
-  This is implemented with the History API (pushState/popstate); it's scoped specifically to
-  those two cases, not full page-by-page browser history.
+  When there's nothing open to close, Back no longer exits the app either — this is what
+  stops the app from fully unloading and losing everything in memory (including whatever's
+  playing) when reopened. To actually leave, use the phone's home button or app switcher,
+  the same way you'd back out of a native app rather than force-quitting it. One honest
+  caveat: mobile OSes can still kill a backgrounded tab under real memory pressure — that's
+  a platform-level limit no web app can fully prevent, though it's a much rarer event than
+  an ordinary back-button press, which this fix handles completely.
 - **Pull-to-refresh is disabled** on mobile (`overscroll-behavior-y: none`) so swiping down
   at the top of a screen doesn't reload the page.
 - **Multi-select** — a "Select" toggle in All Songs (Cloud tab) and inside folders turns on
