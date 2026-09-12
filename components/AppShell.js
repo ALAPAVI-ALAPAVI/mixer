@@ -95,10 +95,11 @@ export default function AppShell({ userName }) {
   // whether via hardware back or an in-app close/back button — always goes
   // through history.back(), so this handler is the single place that
   // actually updates the state.
+  const [exitArmed, setExitArmed] = useState(false);
+  const exitArmedRef = useRef(false);
+  const exitTimerRef = useRef(null);
+
   useEffect(() => {
-    // Establishes a "floor" history entry so the phone/browser Back button
-    // never actually navigates away from this page — which would unload it
-    // and lose everything in memory (playback included) when reopened.
     window.history.pushState({ mixerView: 'root' }, '');
 
     function onPopState() {
@@ -110,13 +111,29 @@ export default function AppShell({ userName }) {
         setSelectedFolder(null);
         return;
       }
-      // Nothing left to close in-app — replant the floor entry immediately
-      // so Back doesn't fall through to a real navigation. Whatever's
-      // playing keeps playing; the app just stays exactly where it is.
-      window.history.pushState({ mixerView: 'root' }, '');
+      if (!exitArmedRef.current) {
+        // First Back press with nothing else open — arm a short exit
+        // confirmation instead of letting the app actually unload (which
+        // would lose playback and reset everything on reopening).
+        exitArmedRef.current = true;
+        setExitArmed(true);
+        window.history.pushState({ mixerView: 'root' }, '');
+        clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = setTimeout(() => {
+          exitArmedRef.current = false;
+          setExitArmed(false);
+        }, 2000);
+        return;
+      }
+      // Second Back press within the window — let this one actually exit.
+      exitArmedRef.current = false;
+      setExitArmed(false);
     }
     window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      clearTimeout(exitTimerRef.current);
+    };
   }, []);
 
   function openFolder(folder) {
@@ -574,6 +591,7 @@ export default function AppShell({ userName }) {
           </div>
         )}
         {playbackError && <div className="form-error">{playbackError}</div>}
+        {exitArmed && <div className="exit-toast">Press back again to exit</div>}
 
         {section === 'home' && (
           <HomeScreen
