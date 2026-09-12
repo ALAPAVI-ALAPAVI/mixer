@@ -2,13 +2,7 @@
 
 import { useRef } from 'react';
 
-const TILES = [
-  { key: 'folders', label: 'Folders', icon: '▤' },
-  { key: 'allsongs', label: 'All Songs', icon: '♪' },
-  { key: 'account', label: 'Account', icon: '☺' },
-];
-
-export default function HomeScreen({ userName, onNavigate, uploading, uploadError, uploadNotice, onUpload }) {
+export default function HomeScreen({ userName, uploading, uploadError, uploadNotice, onUpload }) {
   const fileInputRef = useRef(null);
 
   function handleFileChosen(e) {
@@ -38,17 +32,6 @@ export default function HomeScreen({ userName, onNavigate, uploading, uploadErro
           {uploadNotice}
         </div>
       )}
-
-      <div className="home-tiles">
-        {TILES.map((tile) => (
-          <button key={tile.key} className="home-tile" onClick={() => onNavigate(tile.key)}>
-            <span className="home-tile-icon" aria-hidden="true">
-              {tile.icon}
-            </span>
-            <span className="home-tile-label">{tile.label}</span>
-          </button>
-        ))}
-      </div>
     </section>
   );
 }

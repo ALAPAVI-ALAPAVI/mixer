@@ -23,6 +23,9 @@ body {
   color: var(--text);
   font-family: 'Manrope', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
+  /* Stops the browser's native swipe-down-to-reload gesture on mobile.
+     Harmless on desktop, which doesn't have that gesture to begin with. */
+  overscroll-behavior-y: none;
 }
 
 h1, h2, h3, .brand {
@@ -915,4 +918,85 @@ main.content {
 .upload-hero-text {
   color: var(--text-muted);
   margin: 0 0 16px;
+}
+
+/* --- Search box (All Songs) --- */
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.search-row .search-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.search-row input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.search-row input:focus {
+  outline: none;
+}
+
+/* --- Select toggle row --- */
+.select-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+/* --- Multi-select checkbox --- */
+.track-checkbox {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #1a1200;
+}
+
+.track-checkbox.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.track-row.selected {
+  border-color: var(--accent);
+}
+
+/* --- Bulk selection action bar --- */
+.selection-bar {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 172px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  z-index: 15;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* --- Snap-back animation for the Now Playing sheet after a drag --- */
+.now-playing-screen {
+  transition: transform 0.15s ease;
 }

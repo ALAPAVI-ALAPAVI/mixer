@@ -1,10 +1,12 @@
 'use client';
 
+import { HomeIcon, FolderIcon, MusicIcon, UserIcon } from '@/components/icons';
+
 const ITEMS = [
-  { key: 'home', label: 'Home', icon: '⌂' },
-  { key: 'folders', label: 'Folders', icon: '▤' },
-  { key: 'allsongs', label: 'All Songs', icon: '♪' },
-  { key: 'account', label: 'Account', icon: '☺' },
+  { key: 'home', label: 'Home', Icon: HomeIcon },
+  { key: 'folders', label: 'Folders', Icon: FolderIcon },
+  { key: 'allsongs', label: 'All Songs', Icon: MusicIcon },
+  { key: 'account', label: 'Account', Icon: UserIcon },
 ];
 
 export default function BottomNav({ active, onNavigate }) {
@@ -16,9 +18,7 @@ export default function BottomNav({ active, onNavigate }) {
           className={`nav-item${active === item.key ? ' active' : ''}`}
           onClick={() => onNavigate(item.key)}
         >
-          <span className="nav-icon" aria-hidden="true">
-            {item.icon}
-          </span>
+          <item.Icon width={20} height={20} className="nav-icon" />
           <span className="nav-label">{item.label}</span>
         </button>
       ))}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Modal from '@/components/Modal';
+import { GridIcon, ListIcon, PlusIcon, MoreVerticalIcon } from '@/components/icons';
 
 export default function FoldersScreen({ onOpenFolder, pendingCount, onRenameFolder, onDeleteFolder }) {
   const [folders, setFolders] = useState([]);
@@ -104,7 +105,7 @@ export default function FoldersScreen({ onOpenFolder, pendingCount, onRenameFold
     if (folder.virtual || folder.is_default) return null;
     return (
       <button className="folder-menu-btn" onClick={(e) => openMenu(e, folder)} aria-label="Folder options">
-        ⋮
+        <MoreVerticalIcon width={16} height={16} />
       </button>
     );
   }
@@ -119,14 +120,14 @@ export default function FoldersScreen({ onOpenFolder, pendingCount, onRenameFold
             onClick={() => setView('grid')}
             aria-label="Grid view"
           >
-            ▦
+            <GridIcon width={16} height={16} />
           </button>
           <button
             className={`btn-toggle${view === 'list' ? ' active' : ''}`}
             onClick={() => setView('list')}
             aria-label="List view"
           >
-            ☰
+            <ListIcon width={16} height={16} />
           </button>
         </div>
       </div>
@@ -160,7 +161,7 @@ export default function FoldersScreen({ onOpenFolder, pendingCount, onRenameFold
       )}
 
       <button className="fab" onClick={() => setShowAddModal(true)} aria-label="Add folder">
-        +
+        <PlusIcon />
       </button>
 
       {showAddModal && (

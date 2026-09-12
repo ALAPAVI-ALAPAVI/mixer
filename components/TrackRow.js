@@ -2,29 +2,48 @@
 
 import { useState } from 'react';
 import Modal from '@/components/Modal';
+import { PlayIcon, PauseIcon, MoreVerticalIcon, CheckIcon } from '@/components/icons';
 
-export default function TrackRow({ track, isCurrent, isPlaying, onPlay, badge, menuActions = [] }) {
+export default function TrackRow({
+  track,
+  isCurrent,
+  isPlaying,
+  onPlay,
+  badge,
+  menuActions = [],
+  selectable = false,
+  selected = false,
+  onToggleSelect,
+}) {
   const [showMenu, setShowMenu] = useState(false);
+
+  const tapHandler = selectable ? onToggleSelect : onPlay;
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      onPlay();
+      tapHandler();
     }
   }
 
   return (
-    <div className={`track-row${isCurrent ? ' active' : ''}`}>
+    <div className={`track-row${isCurrent ? ' active' : ''}${selected ? ' selected' : ''}`}>
       <div
         className="track-row-tap"
-        onClick={onPlay}
+        onClick={tapHandler}
         onKeyDown={handleKeyDown}
         role="button"
         tabIndex={0}
       >
-        <span className="track-play-indicator" aria-hidden="true">
-          {isCurrent && isPlaying ? '❚❚' : '▶'}
-        </span>
+        {selectable ? (
+          <span className={`track-checkbox${selected ? ' checked' : ''}`} aria-hidden="true">
+            {selected && <CheckIcon width={14} height={14} />}
+          </span>
+        ) : (
+          <span className="track-play-indicator" aria-hidden="true">
+            {isCurrent && isPlaying ? <PauseIcon width={16} height={16} /> : <PlayIcon width={16} height={16} />}
+          </span>
+        )}
         <div className="track-meta">
           <div className="title">{track.title}</div>
           {track.artist && <div className="artist">{track.artist}</div>}
@@ -33,7 +52,7 @@ export default function TrackRow({ track, isCurrent, isPlaying, onPlay, badge, m
 
       {badge}
 
-      {menuActions.length > 0 && (
+      {!selectable && menuActions.length > 0 && (
         <button
           className="btn-icon"
           onClick={(e) => {
@@ -42,7 +61,7 @@ export default function TrackRow({ track, isCurrent, isPlaying, onPlay, badge, m
           }}
           aria-label="More options"
         >
-          ⋮
+          <MoreVerticalIcon width={16} height={16} />
         </button>
       )}
 

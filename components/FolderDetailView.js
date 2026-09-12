@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Modal from '@/components/Modal';
 import TrackRow from '@/components/TrackRow';
 import FolderPickerModal from '@/components/FolderPickerModal';
+import { ShuffleIcon } from '@/components/icons';
 
 export default function FolderDetailView({
   folder,
@@ -24,6 +25,10 @@ export default function FolderDetailView({
   const [showAddModal, setShowAddModal] = useState(false);
   const [busyTrackId, setBusyTrackId] = useState(null);
   const [folderPickerTrackId, setFolderPickerTrackId] = useState(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkFolderPicker, setBulkFolderPicker] = useState(false);
+  const [bulkRemoving, setBulkRemoving] = useState(false);
 
   useEffect(() => {
     fetchFolderTracks();
@@ -86,6 +91,36 @@ export default function FolderDetailView({
     }
   }
 
+  function toggleSelectionMode() {
+    setSelectionMode((prev) => !prev);
+    setSelectedIds(new Set());
+  }
+
+  function toggleSelected(trackId) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(trackId)) next.delete(trackId);
+      else next.add(trackId);
+      return next;
+    });
+  }
+
+  async function handleBulkRemove() {
+    setBulkRemoving(true);
+    try {
+      for (const id of selectedIds) {
+        await fetch(`/api/folders/${folder.id}/tracks/${id}`, { method: 'DELETE' });
+      }
+      setTracks((prev) => prev.filter((t) => !selectedIds.has(t.id)));
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+    } catch {
+      setError('Could not remove some of the selected songs.');
+    } finally {
+      setBulkRemoving(false);
+    }
+  }
+
   const availableToAdd = allTracks.filter((t) => !tracks.some((ft) => ft.id === t.id));
 
   return (
@@ -104,6 +139,14 @@ export default function FolderDetailView({
 
       {error && <div className="form-error">{error}</div>}
 
+      {tracks.length > 0 && (
+        <div className="select-toggle-row">
+          <button className="btn-link" onClick={toggleSelectionMode}>
+            {selectionMode ? 'Cancel' : 'Select'}
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <p style={{ color: 'var(--text-muted)' }}>Loading…</p>
       ) : tracks.length === 0 ? (
@@ -121,6 +164,9 @@ export default function FolderDetailView({
                 track={track}
                 isCurrent={isCurrent}
                 isPlaying={isPlaying}
+                selectable={selectionMode}
+                selected={selectedIds.has(track.id)}
+                onToggleSelect={() => toggleSelected(track.id)}
                 onPlay={() => (isCurrent ? onTogglePlayPause() : onPlayQueue(tracks, index))}
                 badge={isOffline ? <span className="offline-badge">Downloaded</span> : null}
                 menuActions={[
@@ -137,10 +183,24 @@ export default function FolderDetailView({
         </div>
       )}
 
-      {tracks.length > 0 && (
+      {!selectionMode && tracks.length > 0 && (
         <button className="fab" onClick={() => onShufflePlay(tracks)} aria-label="Shuffle play">
-          🔀
+          <ShuffleIcon />
         </button>
+      )}
+
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="selection-bar">
+          <span>{selectedIds.size} selected</span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-ghost" onClick={() => setBulkFolderPicker(true)}>
+              Add to folder
+            </button>
+            <button className="btn btn-danger" disabled={bulkRemoving} onClick={handleBulkRemove}>
+              {bulkRemoving ? 'Removing…' : 'Remove'}
+            </button>
+          </div>
+        </div>
       )}
 
       {showAddModal && (
@@ -176,6 +236,18 @@ export default function FolderDetailView({
           trackId={folderPickerTrackId}
           onAddToFolder={onAddToFolder}
           onClose={() => setFolderPickerTrackId(null)}
+        />
+      )}
+
+      {bulkFolderPicker && (
+        <FolderPickerModal
+          trackIds={[...selectedIds]}
+          onAddToFolder={onAddToFolder}
+          onClose={() => {
+            setBulkFolderPicker(false);
+            setSelectionMode(false);
+            setSelectedIds(new Set());
+          }}
         />
       )}
     </section>

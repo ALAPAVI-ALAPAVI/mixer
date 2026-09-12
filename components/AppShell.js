@@ -82,6 +82,47 @@ export default function AppShell({ userName }) {
   const audioRef = useRef(null);
   const objectUrlRef = useRef(null);
 
+  // Mirrors of showNowPlaying/selectedFolder for the popstate handler below
+  // (attached once on mount, so it needs refs rather than stale closure state).
+  const showNowPlayingRef = useRef(false);
+  const selectedFolderRef = useRef(null);
+  useEffect(() => { showNowPlayingRef.current = showNowPlaying; }, [showNowPlaying]);
+  useEffect(() => { selectedFolderRef.current = selectedFolder; }, [selectedFolder]);
+
+  // Makes the phone/browser's own Back button close whatever's open in-app
+  // (Now Playing, then a folder) instead of leaving/backing out of the app
+  // entirely. Each "open" action below pushes a history entry; closing —
+  // whether via hardware back or an in-app close/back button — always goes
+  // through history.back(), so this handler is the single place that
+  // actually updates the state.
+  useEffect(() => {
+    function onPopState() {
+      if (showNowPlayingRef.current) {
+        setShowNowPlaying(false);
+        return;
+      }
+      if (selectedFolderRef.current) {
+        setSelectedFolder(null);
+      }
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  function openFolder(folder) {
+    if (!selectedFolderRef.current) {
+      window.history.pushState({ mixerView: 'folder' }, '');
+    }
+    setSelectedFolder(folder);
+  }
+
+  function expandNowPlaying() {
+    if (!showNowPlayingRef.current) {
+      window.history.pushState({ mixerView: 'now-playing' }, '');
+    }
+    setShowNowPlaying(true);
+  }
+
   // Refs mirroring the latest queue/loop state, so the audio element's
   // long-lived "ended" listener (attached once on mount) always acts on
   // current values instead of the stale ones from its first render.
@@ -216,6 +257,9 @@ export default function AppShell({ userName }) {
     setPlaybackError('');
     setQueue(list);
     setQueueIndex(index);
+    if (!showNowPlayingRef.current) {
+      window.history.pushState({ mixerView: 'now-playing' }, '');
+    }
     setShowNowPlaying(true);
 
     if (objectUrlRef.current) {
@@ -459,6 +503,21 @@ export default function AppShell({ userName }) {
     if (!res.ok) throw new Error('Could not add song to folder.');
   }
 
+  async function handleBulkDelete(trackIds) {
+    const wasCurrentDeleted = queue[queueIndex] && trackIds.includes(queue[queueIndex].id);
+    for (const id of trackIds) {
+      await fetch(`/api/tracks/${id}`, { method: 'DELETE' });
+      await removeOfflineTrack(id);
+    }
+    setTracks((prev) => prev.filter((t) => !trackIds.includes(t.id)));
+    await refreshOfflineIds();
+    if (wasCurrentDeleted) {
+      audioRef.current?.pause();
+      setQueueIndex(-1);
+      setShowNowPlaying(false);
+    }
+  }
+
   async function handleDownloadToggle(track, isOffline) {
     if (isOffline) {
       await removeOfflineTrack(track.id);
@@ -509,7 +568,6 @@ export default function AppShell({ userName }) {
         {section === 'home' && (
           <HomeScreen
             userName={userName}
-            onNavigate={navigate}
             uploading={uploading}
             uploadError={uploadError}
             uploadNotice={uploadNotice}
@@ -519,7 +577,7 @@ export default function AppShell({ userName }) {
 
         {section === 'folders' && !selectedFolder && (
           <FoldersScreen
-            onOpenFolder={setSelectedFolder}
+            onOpenFolder={openFolder}
             pendingCount={pendingUploads.length}
             onRenameFolder={handleRenameFolder}
             onDeleteFolder={handleDeleteFolder}
@@ -539,7 +597,7 @@ export default function AppShell({ userName }) {
             onSync={handleSyncPendingUploads}
             onSyncOne={handleSyncOne}
             onCancel={handleCancelPending}
-            onBack={() => setSelectedFolder(null)}
+            onBack={() => window.history.back()}
           />
         )}
 
@@ -555,7 +613,7 @@ export default function AppShell({ userName }) {
             onTogglePlayPause={togglePlayPause}
             onDownloadToggle={handleDownloadToggle}
             onAddToFolder={handleAddToFolder}
-            onBack={() => setSelectedFolder(null)}
+            onBack={() => window.history.back()}
           />
         )}
 
@@ -570,6 +628,7 @@ export default function AppShell({ userName }) {
             onShufflePlay={() => shufflePlay(tracks)}
             onTogglePlayPause={togglePlayPause}
             onDelete={handleDelete}
+            onBulkDelete={handleBulkDelete}
             onDownloadToggle={handleDownloadToggle}
             onAddToFolder={handleAddToFolder}
             pendingUploads={pendingUploads}
@@ -596,7 +655,7 @@ export default function AppShell({ userName }) {
         onNext={playNext}
         onPrev={playPrev}
         onSeek={seekTo}
-        onExpand={() => currentTrack && setShowNowPlaying(true)}
+        onExpand={() => currentTrack && expandNowPlaying()}
       />
 
       {showNowPlaying && currentTrack && (
@@ -607,7 +666,7 @@ export default function AppShell({ userName }) {
           duration={duration}
           shuffle={shuffle}
           loop={loop}
-          onClose={() => setShowNowPlaying(false)}
+          onClose={() => window.history.back()}
           onTogglePlayPause={togglePlayPause}
           onNext={playNext}
           onPrev={playPrev}

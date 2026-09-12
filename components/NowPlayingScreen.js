@@ -1,7 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Modal from '@/components/Modal';
+import {
+  ChevronDownIcon,
+  MoreVerticalIcon,
+  ShuffleIcon,
+  SkipPrevIcon,
+  SkipNextIcon,
+  PlayIcon,
+  PauseIcon,
+  LoopIcon,
+} from '@/components/icons';
 
 function formatTime(seconds) {
   if (!seconds || Number.isNaN(seconds)) return '0:00';
@@ -36,6 +46,10 @@ export default function NowPlayingScreen({
   const [foldersLoading, setFoldersLoading] = useState(false);
   const [addedMessage, setAddedMessage] = useState('');
 
+  const [dragY, setDragY] = useState(0);
+  const startYRef = useRef(null);
+  const draggingRef = useRef(false);
+
   useEffect(() => {
     if (!showFolderPicker) return;
     setFoldersLoading(true);
@@ -69,22 +83,53 @@ export default function NowPlayingScreen({
     setShowMenu(false);
   }
 
+  // Dragging down on the header/art/meta area (not the seek bar or the
+  // control buttons) collapses back to the mini player.
+  function handlePointerDown(e) {
+    if (e.target.closest('.np-seek') || e.target.closest('.np-controls')) return;
+    startYRef.current = e.clientY;
+    draggingRef.current = true;
+  }
+
+  function handlePointerMove(e) {
+    if (!draggingRef.current || startYRef.current === null) return;
+    const delta = e.clientY - startYRef.current;
+    if (delta > 0) {
+      setDragY(Math.min(delta, 300));
+    }
+  }
+
+  function handlePointerUp() {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    if (dragY > 90) {
+      onClose();
+    }
+    setDragY(0);
+    startYRef.current = null;
+  }
+
   return (
     <div className="now-playing-overlay">
-      <div className="now-playing-screen">
+      <div
+        className="now-playing-screen"
+        style={dragY ? { transform: `translateY(${dragY}px)` } : undefined}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
         <div className="np-header">
           <button className="btn-icon" onClick={onClose} aria-label="Minimize">
-            ⌄
+            <ChevronDownIcon />
           </button>
           <span className="np-header-label">Now Playing</span>
           <button className="btn-icon" onClick={() => setShowMenu(true)} aria-label="More options">
-            ⋮
+            <MoreVerticalIcon />
           </button>
         </div>
 
-        <div className="np-art" aria-hidden="true">
-          ♪
-        </div>
+        <div className="np-art" aria-hidden="true" />
 
         <div className="np-meta">
           <h2 className="np-title">{track.title}</h2>
@@ -110,19 +155,19 @@ export default function NowPlayingScreen({
             onClick={onToggleShuffle}
             aria-label="Shuffle"
           >
-            🔀
+            <ShuffleIcon width={18} height={18} />
           </button>
           <button className="btn-icon np-skip" onClick={onPrev} aria-label="Previous">
-            ⏮
+            <SkipPrevIcon width={26} height={26} />
           </button>
           <button className="np-play-btn" onClick={onTogglePlayPause} aria-label={isPlaying ? 'Pause' : 'Play'}>
-            {isPlaying ? '❚❚' : '▶'}
+            {isPlaying ? <PauseIcon width={28} height={28} /> : <PlayIcon width={28} height={28} />}
           </button>
           <button className="btn-icon np-skip" onClick={onNext} aria-label="Next">
-            ⏭
+            <SkipNextIcon width={26} height={26} />
           </button>
           <button className={`btn-icon${loop ? ' active' : ''}`} onClick={onToggleLoop} aria-label="Loop">
-            🔁
+            <LoopIcon width={18} height={18} />
           </button>
         </div>
       </div>

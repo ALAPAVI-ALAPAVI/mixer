@@ -1,6 +1,7 @@
 'use client';
 
 import TrackRow from '@/components/TrackRow';
+import { ShuffleIcon } from '@/components/icons';
 
 export default function LocalSongsPanel({
   pendingUploads,
@@ -49,7 +50,7 @@ export default function LocalSongsPanel({
 
           {pendingUploads.length > 1 && (
             <button className="fab" onClick={onShufflePlay} aria-label="Shuffle play local songs">
-              🔀
+              <ShuffleIcon />
             </button>
           )}
 

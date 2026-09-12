@@ -141,6 +141,25 @@ Put the result in `NEXTAUTH_SECRET`. Use a different one for local vs. productio
   upload 3 songs on your phone, then go offline: your phone can still play them. A second
   device only gets that offline access once it explicitly downloads that song (or once its
   own upload of a duplicate file was rejected in favor of the existing one).
+- **Home is just the uploader now** — the decorative section tiles were removed; the bottom
+  nav is the one way to move between sections.
+- **Search** — a search box at the top of All Songs' Cloud tab filters by title or artist.
+- **Icons instead of emoji** — every control (play/pause, next/prev, shuffle, loop, menus,
+  nav bar, etc.) uses small hand-drawn SVG icons (`components/icons.js`) rather than emoji
+  characters, for a more consistent, deliberate look across devices and platforms.
+- **Swipe the mini player up** to open Now Playing full-screen; **swipe Now Playing down**
+  to collapse it back — dragging the seek bar or tapping the control buttons doesn't trigger
+  this. This is built with pointer events and hasn't been tested on a real phone from this
+  environment, so it's worth double-checking the feel on your actual device.
+- **The hardware/phone Back button acts like an in-app back button** — pressing it while a
+  folder or the Now Playing screen is open closes just that, instead of leaving the app.
+  This is implemented with the History API (pushState/popstate); it's scoped specifically to
+  those two cases, not full page-by-page browser history.
+- **Pull-to-refresh is disabled** on mobile (`overscroll-behavior-y: none`) so swiping down
+  at the top of a screen doesn't reload the page.
+- **Multi-select** — a "Select" toggle in All Songs (Cloud tab) and inside folders turns on
+  checkboxes; with one or more songs selected, a bar appears to Add to folder or
+  Delete/Remove in bulk instead of one at a time.
 
 - **Auth:** NextAuth handles both Google sign-in and email/password sign-in. Both map onto
   the same `users` table by email — so if you sign up with email/password and later sign in

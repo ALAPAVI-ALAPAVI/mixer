@@ -3,10 +3,14 @@
 import { useEffect, useState } from 'react';
 import Modal from '@/components/Modal';
 
-export default function FolderPickerModal({ trackId, onAddToFolder, onClose }) {
+// Accepts either a single trackId or an array trackIds for bulk-adding
+// multiple selected songs to one folder at once.
+export default function FolderPickerModal({ trackId, trackIds, onAddToFolder, onClose }) {
+  const ids = trackIds || (trackId != null ? [trackId] : []);
   const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetch('/api/folders')
@@ -17,12 +21,17 @@ export default function FolderPickerModal({ trackId, onAddToFolder, onClose }) {
   }, []);
 
   async function handlePick(folderId) {
+    setSaving(true);
     try {
-      await onAddToFolder(trackId, folderId);
-      setMessage('Added to folder.');
+      for (const id of ids) {
+        await onAddToFolder(id, folderId);
+      }
+      setMessage(ids.length > 1 ? `Added ${ids.length} songs to folder.` : 'Added to folder.');
       setTimeout(onClose, 800);
     } catch {
       setMessage('Could not add to that folder.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -35,7 +44,7 @@ export default function FolderPickerModal({ trackId, onAddToFolder, onClose }) {
       ) : (
         <div className="menu-list">
           {folders.map((f) => (
-            <button key={f.id} className="btn btn-ghost menu-item" onClick={() => handlePick(f.id)}>
+            <button key={f.id} className="btn btn-ghost menu-item" disabled={saving} onClick={() => handlePick(f.id)}>
               {f.name}
             </button>
           ))}

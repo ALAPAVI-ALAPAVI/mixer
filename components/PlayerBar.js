@@ -1,5 +1,8 @@
 'use client';
 
+import { useRef, useState } from 'react';
+import { PlayIcon, PauseIcon, SkipNextIcon, SkipPrevIcon } from '@/components/icons';
+
 function formatTime(seconds) {
   if (!seconds || Number.isNaN(seconds)) return '0:00';
   const m = Math.floor(seconds / 60);
@@ -10,6 +13,36 @@ function formatTime(seconds) {
 }
 
 export default function PlayerBar({ track, isPlaying, currentTime, duration, onTogglePlayPause, onNext, onPrev, onSeek, onExpand }) {
+  const [dragY, setDragY] = useState(0);
+  const startYRef = useRef(null);
+  const draggingRef = useRef(false);
+
+  function handlePointerDown(e) {
+    // Don't hijack dragging the seek bar itself — only the rest of the bar
+    // (tapping/sliding it up) opens the full Now Playing screen.
+    if (e.target.closest('.seek-row')) return;
+    startYRef.current = e.clientY;
+    draggingRef.current = true;
+  }
+
+  function handlePointerMove(e) {
+    if (!draggingRef.current || startYRef.current === null) return;
+    const delta = e.clientY - startYRef.current;
+    if (delta < 0) {
+      setDragY(Math.max(delta, -120));
+    }
+  }
+
+  function handlePointerUp() {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    if (dragY < -40) {
+      onExpand();
+    }
+    setDragY(0);
+    startYRef.current = null;
+  }
+
   if (!track) {
     return (
       <div className="player-bar">
@@ -23,7 +56,14 @@ export default function PlayerBar({ track, isPlaying, currentTime, duration, onT
   }
 
   return (
-    <div className="player-bar">
+    <div
+      className="player-bar"
+      style={dragY ? { transform: `translateY(${dragY}px)` } : undefined}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+    >
       <div className="now-playing" onClick={onExpand} role="button" tabIndex={0}>
         <div className="title">{track.title}</div>
         {track.artist && <div className="artist">{track.artist}</div>}
@@ -31,13 +71,13 @@ export default function PlayerBar({ track, isPlaying, currentTime, duration, onT
 
       <div className="player-controls">
         <button className="btn-icon" onClick={onPrev} aria-label="Previous">
-          ⏮
+          <SkipPrevIcon width={18} height={18} />
         </button>
         <button className="btn-icon" onClick={onTogglePlayPause} aria-label={isPlaying ? 'Pause' : 'Play'}>
-          {isPlaying ? '❚❚' : '▶'}
+          {isPlaying ? <PauseIcon width={18} height={18} /> : <PlayIcon width={18} height={18} />}
         </button>
         <button className="btn-icon" onClick={onNext} aria-label="Next">
-          ⏭
+          <SkipNextIcon width={18} height={18} />
         </button>
       </div>
 
