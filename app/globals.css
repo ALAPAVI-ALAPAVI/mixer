@@ -999,4 +999,22 @@ main.content {
 /* --- Snap-back animation for the Now Playing sheet after a drag --- */
 .now-playing-screen {
   transition: transform 0.15s ease;
+  touch-action: none;
+}
+
+/* The mini player bar and Now Playing sheet intercept vertical drags
+   themselves (swipe up / swipe down) instead of letting the browser treat
+   them as a page scroll or pull-to-refresh gesture. The seek bar's native
+   slider still needs normal touch handling to be draggable, so it opts back
+   in explicitly, overriding its ancestor's touch-action. */
+.player-bar {
+  touch-action: none;
+}
+
+.seek-row {
+  touch-action: auto;
+}
+
+.np-controls {
+  touch-action: manipulation;
 }

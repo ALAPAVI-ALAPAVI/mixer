@@ -89,17 +89,16 @@ export default function NowPlayingScreen({
     if (e.target.closest('.np-seek') || e.target.closest('.np-controls')) return;
     startYRef.current = e.clientY;
     draggingRef.current = true;
+    e.currentTarget.setPointerCapture(e.pointerId);
   }
 
   function handlePointerMove(e) {
     if (!draggingRef.current || startYRef.current === null) return;
     const delta = e.clientY - startYRef.current;
-    if (delta > 0) {
-      setDragY(Math.min(delta, 300));
-    }
+    setDragY(delta > 0 ? Math.min(delta, 300) : 0);
   }
 
-  function handlePointerUp() {
+  function handlePointerUp(e) {
     if (!draggingRef.current) return;
     draggingRef.current = false;
     if (dragY > 90) {
@@ -107,6 +106,9 @@ export default function NowPlayingScreen({
     }
     setDragY(0);
     startYRef.current = null;
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
   }
 
   return (

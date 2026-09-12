@@ -23,17 +23,16 @@ export default function PlayerBar({ track, isPlaying, currentTime, duration, onT
     if (e.target.closest('.seek-row')) return;
     startYRef.current = e.clientY;
     draggingRef.current = true;
+    e.currentTarget.setPointerCapture(e.pointerId);
   }
 
   function handlePointerMove(e) {
     if (!draggingRef.current || startYRef.current === null) return;
     const delta = e.clientY - startYRef.current;
-    if (delta < 0) {
-      setDragY(Math.max(delta, -120));
-    }
+    setDragY(delta < 0 ? Math.max(delta, -120) : 0);
   }
 
-  function handlePointerUp() {
+  function handlePointerUp(e) {
     if (!draggingRef.current) return;
     draggingRef.current = false;
     if (dragY < -40) {
@@ -41,6 +40,9 @@ export default function PlayerBar({ track, isPlaying, currentTime, duration, onT
     }
     setDragY(0);
     startYRef.current = null;
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
   }
 
   if (!track) {
