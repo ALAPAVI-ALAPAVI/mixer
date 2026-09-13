@@ -153,15 +153,13 @@ Put the result in `NEXTAUTH_SECRET`. Use a different one for local vs. productio
   environment, so it's worth double-checking the feel on your actual device.
 - **The hardware/phone Back button acts like an in-app back button** — pressing it while a
   folder or the Now Playing screen is open closes just that, instead of leaving the app.
-  When there's nothing open to close, the first Back press shows a brief "Press back again
-  to exit" notice instead of immediately leaving; a second press within ~2 seconds actually
-  exits. This is deliberately a *light-touch* pattern (touches history once per attempt)
-  rather than an infinite block — an earlier, more aggressive version that tried to prevent
-  Back from ever exiting caused the opposite problem on real Android hardware (the app would
-  still eventually reload after a couple of presses, losing playback state, just delayed).
-  Mobile back-button/history behavior for installed PWAs is genuinely finicky and hard to
-  fully verify without a real device to test on — if this still doesn't feel right, let me
-  know exactly what happens and we'll adjust further.
+  When nothing's open, Back behaves like an ordinary back button (exits/backgrounds the app
+  as the phone normally would). Two different attempts at also intercepting that final
+  exit — blocking it outright, then a "press twice to confirm" version — both caused worse,
+  less predictable problems on real Android hardware than they solved (the app would still
+  end up reloading and losing playback state, just after a delay). Rather than guess at a
+  third approach blindly, that part's been left at the platform's normal behavior; the
+  folder/Now-Playing-closing part above is what's actually fixed and working.
 - **Pull-to-refresh is disabled** on mobile (`overscroll-behavior-y: none`) so swiping down
   at the top of a screen doesn't reload the page.
 - **Multi-select** — a "Select" toggle in All Songs (Cloud tab) and inside folders turns on
