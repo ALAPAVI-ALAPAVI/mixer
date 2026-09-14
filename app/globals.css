@@ -1,12 +1,13 @@
 :root {
-  --bg: #12141a;
-  --surface: #1b1e27;
-  --surface-2: #242938;
-  --border: rgba(255, 255, 255, 0.08);
-  --accent: #e8a33d;
-  --accent-hover: #f2b458;
-  --text: #ede9e3;
-  --text-muted: #8b8f9b;
+  --bg: #141414;
+  --surface: #1c1c1c;
+  --surface-2: #2c2c2c;
+  --border: #444444;
+  --accent: #7d0f1f;
+  --accent-hover: #9c1526;
+  --accent-text: #f5eeee;
+  --text: #e4e4e2;
+  --text-muted: #8a8a8a;
   --danger: #d9634a;
   --danger-hover: #e4785f;
 }
@@ -21,7 +22,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  font-family: 'VT323', monospace;
   min-height: 100vh;
   /* Stops the browser's native swipe-down-to-reload gesture on mobile.
      Harmless on desktop, which doesn't have that gesture to begin with. */
@@ -29,9 +30,9 @@ body {
 }
 
 h1, h2, h3, .brand {
-  font-family: 'Fraunces', Georgia, serif;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-family: 'VT323', monospace;
+  font-weight: 400;
+  letter-spacing: 0.02em;
 }
 
 button {
@@ -49,7 +50,7 @@ a {
 
 ::selection {
   background: var(--accent);
-  color: #1a1200;
+  color: var(--accent-text);
 }
 
 :focus-visible {
@@ -123,7 +124,7 @@ main.content {
 
 .btn-primary {
   background: var(--accent);
-  color: #1a1200;
+  color: var(--accent-text);
 }
 
 .btn-primary:hover {
@@ -596,7 +597,7 @@ main.content {
   height: 52px;
   border-radius: 50%;
   background: var(--accent);
-  color: #1a1200;
+  color: var(--accent-text);
   border: none;
   font-size: 1.6rem;
   line-height: 1;
@@ -668,10 +669,10 @@ main.content {
   height: 64px;
   border-radius: 50%;
   background: var(--accent);
-  color: #1a1200;
-  font-family: 'Fraunces', Georgia, serif;
+  color: var(--accent-text);
+  font-family: 'VT323', monospace;
   font-size: 1.8rem;
-  font-weight: 600;
+  font-weight: 400;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -809,7 +810,7 @@ main.content {
   height: 68px;
   border-radius: 50%;
   background: var(--accent);
-  color: #1a1200;
+  color: var(--accent-text);
   border: none;
   font-size: 1.5rem;
   display: flex;
@@ -966,7 +967,7 @@ main.content {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #1a1200;
+  color: var(--accent-text);
 }
 
 .track-checkbox.checked {

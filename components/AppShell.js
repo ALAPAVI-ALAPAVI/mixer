@@ -563,7 +563,7 @@ export default function AppShell({ userName }) {
       <main className="content">
         {loadError && <div className="form-error">{loadError}</div>}
         {usingCachedLibrary && (
-          <div className="form-error" style={{ background: 'rgba(232,163,61,0.12)', borderColor: 'rgba(232,163,61,0.4)', color: 'var(--accent)' }}>
+          <div className="form-error" style={{ background: 'rgba(125,15,31,0.18)', borderColor: 'rgba(125,15,31,0.5)', color: 'var(--accent-text)' }}>
             You're offline — showing your last-known library.
           </div>
         )}

@@ -87,6 +87,15 @@ Put the result in `NEXTAUTH_SECRET`. Use a different one for local vs. productio
 
 ## How it works
 
+- **Visual style:** dark grayscale (near-black page, charcoal panels, soft off-white
+  text — deliberately not pure white/high-brightness) with a single maroon accent
+  (`#7d0f1f`) used for anything interactive or emphasized — the play button, progress
+  fill, active nav tab, folder/note icons, active shuffle/loop toggles. Text is set in
+  VT323, a light retro-terminal font, applied consistently for both headings and body
+  text rather than mixing in a separate serif/sans pairing. All of this lives in CSS
+  variables at the top of `app/globals.css` (`--bg`, `--surface`, `--accent`, etc.) —
+  change the values there to retint the whole app at once.
+
 - **Sections:** the app is organized into four sections reachable from the bottom nav
   (and, redundantly but by design, from tiles on the Home screen): **Home**, **Folders**,
   **All Songs**, and **Account**.
