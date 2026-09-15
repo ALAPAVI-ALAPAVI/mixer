@@ -107,7 +107,13 @@ Put the result in `NEXTAUTH_SECRET`. Use a different one for local vs. productio
   has one **default folder** ("All Uploads") that every new upload is automatically added
   to; it can't be deleted, though you can still create your own folders alongside it.
   Folders support both grid and list view (toggle top-right).
-- **Account** shows a simple account card and is where Sign out lives now.
+- **Account** — tap the card to expand it, showing your email, username, total songs,
+  most-played song, and total library play time. Sign out lives as its own button at the
+  bottom of the screen, separate from the card. Play counts increment each time you start
+  a real (already-uploaded) song from anywhere in the app; a song's duration is read in the
+  browser right before it uploads and stored alongside it, which is what makes "total play
+  time" (the combined length of every song in your library) possible without the server
+  ever needing to process the audio itself.
 - **Duplicate detection:** every upload is fingerprinted with a SHA-256 hash of the file's
   contents (computed in the browser). Uploading the exact same audio file twice — even
   under a different filename — is rejected with a clear message, both from a fast local

@@ -24,6 +24,7 @@ import {
   removePendingUpload,
 } from '@/lib/offline';
 import { hashFile } from '@/lib/hash';
+import { getAudioDuration } from '@/lib/duration';
 import { uploadTrackFile, DUPLICATE_TRACK_ERROR } from '@/lib/uploadTrack';
 
 // Turns a raw pending-upload record (keyed by hash, holding a Blob) into
@@ -48,7 +49,7 @@ function shuffleArray(arr) {
   return copy;
 }
 
-export default function AppShell({ userName }) {
+export default function AppShell({ userName, userEmail }) {
   const [section, setSection] = useState('home'); // 'home' | 'folders' | 'allsongs' | 'account'
   const [selectedFolder, setSelectedFolder] = useState(null);
 
@@ -293,6 +294,13 @@ export default function AppShell({ userName }) {
         }
       }
       await audio.play();
+
+      // Record the play for account stats — only for real, already-uploaded
+      // songs (not local-only queued ones), and never let this block or
+      // interrupt actual playback if the request fails.
+      if (!track.isPending && typeof track.id === 'number') {
+        fetch(`/api/tracks/${track.id}/play`, { method: 'POST' }).catch(() => {});
+      }
     } catch {
       setPlaybackError('Could not play this track. It may need an internet connection.');
     }
@@ -385,9 +393,10 @@ export default function AppShell({ userName }) {
       }
 
       const title = file.name.replace(/\.[^/.]+$/, '');
+      const duration = await getAudioDuration(file);
 
       try {
-        await uploadTrackFile(file, { hash, title });
+        await uploadTrackFile(file, { hash, title, duration });
 
         // The database row is created by a server-to-server callback that
         // fires right after the upload lands, so it can trail by a moment.
@@ -438,7 +447,8 @@ export default function AppShell({ userName }) {
   async function syncSingleItem(item) {
     try {
       const file = new File([item.blob], item.fileName, { type: item.fileType });
-      await uploadTrackFile(file, { hash: item.hash, title: item.title, artist: item.artist });
+      const duration = await getAudioDuration(file);
+      await uploadTrackFile(file, { hash: item.hash, title: item.title, artist: item.artist, duration });
       await removePendingUpload(item.hash);
 
       await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -652,7 +662,7 @@ export default function AppShell({ userName }) {
           />
         )}
 
-        {section === 'account' && <AccountScreen userName={userName} />}
+        {section === 'account' && <AccountScreen userName={userName} userEmail={userEmail} />}
       </main>
 
       <PlayerBar

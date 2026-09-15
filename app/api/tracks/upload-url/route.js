@@ -62,6 +62,7 @@ export async function POST(req) {
             title: meta.title || 'Untitled',
             artist: meta.artist || null,
             hash: meta.hash || null,
+            duration: meta.duration || null,
           }),
         };
       },
@@ -80,6 +81,7 @@ export async function POST(req) {
           blobUrl: blob.url,
           sizeBytes: null,
           contentHash: meta.hash || null,
+          durationSeconds: meta.duration || null,
         });
 
         // Every uploaded song automatically lands in the default folder too.

@@ -9,5 +9,5 @@ export default async function HomePage() {
     redirect('/login');
   }
 
-  return <AppShell userName={session.user.name || session.user.email} />;
+  return <AppShell userName={session.user.name || session.user.email} userEmail={session.user.email} />;
 }
