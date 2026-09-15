@@ -132,9 +132,11 @@ Put the result in `NEXTAUTH_SECRET`. Use a different one for local vs. productio
   ⋮ menu for "Add to folder" / "Delete" (or "Remove from queue" for a not-yet-synced
   local song). Minimize with the ⌄ at the top.
 - **Playback order:** by default, a folder or the library plays straight through and stops
-  after the last song. Turning Loop on (from the Now Playing screen) makes it wrap back to
-  the start instead. Shuffle reorders the upcoming songs in the current queue; the Shuffle
-  button inside a folder immediately shuffles and plays that folder's songs from the top.
+  after the last song. Turning Loop on (from the Now Playing screen) repeats whichever song
+  is currently playing, every time it ends, regardless of its position in the queue — not
+  just at the end of the list. Shuffle reorders the upcoming songs in the current queue;
+  the Shuffle button inside a folder immediately shuffles and plays that folder's songs
+  from the top.
 - **Home is the upload screen.** Uploading now happens from Home rather than from All Songs
   — All Songs is purely for browsing/managing what's already there.
 - **All Songs has a Cloud / Local tab bar** at the top instead of stacked sections, to

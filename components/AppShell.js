@@ -148,13 +148,18 @@ export default function AppShell({ userName }) {
       const q = queueRef.current;
       const idx = queueIndexRef.current;
       if (q.length === 0) return;
+      if (loopRef.current) {
+        // Loop means "repeat this song" — replay the same track regardless
+        // of where it sits in the queue, not just wrap around at the end.
+        playFromQueueRef.current(q, idx);
+        return;
+      }
       const atEnd = idx + 1 >= q.length;
-      if (atEnd && !loopRef.current) {
+      if (atEnd) {
         audio.pause();
         return;
       }
-      const next = atEnd ? 0 : idx + 1;
-      playFromQueueRef.current(q, next);
+      playFromQueueRef.current(q, idx + 1);
     };
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
